@@ -1,0 +1,52 @@
+{
+  "name": "coinselect-segwit",
+  "version": "1.0.2",
+  "description": "A transaction input selection module for bitcoin.",
+  "keywords": [
+    "coinselect-segwit",
+    "coin",
+    "unspents",
+    "wallet",
+    "BIP32",
+    "management",
+    "utxo",
+    "transaction",
+    "fee",
+    "optimization",
+    "optimizing",
+    "bitcoin"
+  ],
+  "homepage": "https://github.com/yaswap/coinselect-segwit",
+  "bugs": {
+    "url": "https://github.com/yaswap/coinselect-segwit/issues"
+  },
+  "license": "MIT",
+  "author": "Yaswap",
+  "files": [
+    "accumulative.js",
+    "blackjack.js",
+    "break.js",
+    "index.js",
+    "split.js",
+    "utils.js",
+    "index.d.ts"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yaswap/coinselect-segwit.git"
+  },
+  "scripts": {
+    "coverage": "nyc --check-coverage --branches 100 --functions 100 tape test/*.js",
+    "standard": "standard",
+    "test": "npm run standard && npm run unit",
+    "unit": "tape test/*.js"
+  },
+  "devDependencies": {
+    "nyc": "^15.0.0",
+    "standard": "^14.3.4",
+    "tape": "^4.5.1"
+  },
+  "dependencies": {}
+}

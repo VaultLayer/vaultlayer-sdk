@@ -1,0 +1,31 @@
+.modal-view-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  width: 50px;
+  height: 50px;
+  background-color: #DD622D;
+  border-radius: 9999px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.modal-view-iframe {
+  position: fixed;
+  bottom: 60px;
+  right: 60px;
+  width: 400px;
+  height: 600px;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+
+  @media screen and (max-width: 768px) {
+    width: 100%;
+    height: 100%;
+    bottom: 0;
+    right: 0;
+  }
+}
