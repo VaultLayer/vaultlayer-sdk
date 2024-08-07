@@ -1,6 +1,6 @@
 import coinSelect from "../lib/coinselect-segwit";
 import { networks, payments, Psbt, Transaction } from 'bitcoinjs-lib';
-import ECPairFactory from "ecpair";
+import { ECPairFactory } from "ecpair";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { toOutputScript } from "bitcoinjs-lib/src/address";
 

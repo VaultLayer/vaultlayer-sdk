@@ -11,7 +11,7 @@ export const useWalletProvider = () => {
     signMessageBtc,
     getNetwork,
     switchNetwork,
-    sendBitcoin 
+    sendBitcoin,
   } = useConnectProvider();
 
   const sendInscription = useCallback(
@@ -25,5 +25,16 @@ export const useWalletProvider = () => {
     [connector]
   );
 
-  return { connector, provider, accounts, getPublicKey, signMessageEth, signMessageBtc, getNetwork, switchNetwork, sendBitcoin, sendInscription };
+  return {
+    connector,
+    provider,
+    accounts,
+    getPublicKey,
+    signMessageEth,
+    signMessageBtc,
+    getNetwork,
+    switchNetwork,
+    sendBitcoin,
+    sendInscription,
+  };
 };
