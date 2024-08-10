@@ -42,22 +42,17 @@
     "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
-    "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
     "@ethereumjs/util": "^9.0.1",
+    "@bitcoinerlab/secp256k1": "^1.1.1",
     "@lit-protocol/auth-helpers": "^6.2.2",
     "@lit-protocol/constants": "^6.2.2",
     "@lit-protocol/lit-auth-client": "^6.2.2",
     "@lit-protocol/pkp-ethers": "^6.2.2",
     "@lit-protocol/types": "^6.2.2",
     "@particle-network/chains": "^1.4.15",
-    "@simplewebauthn/browser": "^10.0.0",
-    "@types/bitcore-lib": "^0.15.6",
+    "@simplewebauthn/browser": "^10.0.0",    
     "bignumber.js": "^9.1.2",
-    "bitcoinjs-lib": "^6.1.6",
-    "bitcore-lib": "^10.0.23",
     "cssnano": "^6.0.3",
-    "ecpair": "^2.1.0",
-    "ethers": "^5",
     "pino-pretty": "^11.2.2",
     "react-remove-scroll": "^2.5.7",
     "sats-connect": "^1.4.1",
@@ -67,6 +62,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/bitcore-lib": "^0.15.6",
     "esbuild-css-modules-plugin": "^3.1.0",
     "esbuild-sass-plugin": "^2.16.1",
     "esbuild-scss-modules-plugin": "^1.1.1",
@@ -75,6 +71,10 @@
     "sass": "^1.69.7"
   },
   "peerDependencies": {
-    "react": ">=17.0.0"
+    "react": "^18",
+    "bitcoinjs-lib": "^6.1.6",
+    "bitcore-lib": "^10.0.23",
+    "ecpair": "^2.1.0",
+    "ethers": "^5"
   }
 }

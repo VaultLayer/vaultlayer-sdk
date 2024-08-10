@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode } from 'react';
+import React, { type CSSProperties, type ReactNode } from 'react';
 import Spinner from '../spinner';
 import styles from './button.module.scss';
 

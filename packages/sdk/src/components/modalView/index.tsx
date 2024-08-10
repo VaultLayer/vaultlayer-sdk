@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import styles from './modalView.module.scss';
 import wallet from '../../icons/vaultlayer';

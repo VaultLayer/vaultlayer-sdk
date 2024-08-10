@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import ConnectModal from '../components/connectModal';
 import SignModal from '../components/signModal';
 import { type BaseConnector } from '../connector/base';

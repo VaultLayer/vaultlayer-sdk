@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import React, { useState, type CSSProperties } from 'react';
 import { copyToClipboard } from '../../utils';
 import styles from './copyText.module.scss';
 

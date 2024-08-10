@@ -36,9 +36,9 @@ const personalSignMessage =
 export default function Home() {
   const { openConnectModal, disconnect } = useConnectModal();
   // Connected wallet accounts:
-  const { accounts, connector, getNetwork, switchNetwork } = useWalletProvider();
+  const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } = useWalletProvider();
   // Smart Vault accounts:
-  const { smartVault, sendBitcoin, vaultEthClient, network, chainId } = useVaultProvider();
+  const { smartVault, vaultEthClient, network, chainId } = useVaultProvider();
   const [gasless, setGasless] = useState<boolean>(false);
   const [forceHideModal, setForceHideModal] = useState<boolean>(false);
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
@@ -88,7 +88,7 @@ export default function Home() {
 
   const onGetPubkey = async () => {
     try {
-      const pubKey = ''; // await getPublicKey();
+      const pubKey = await getPublicKey();
       console.log('🚀 ~ onGetPubkey ~ pubKey:', pubKey);
       toast.success(pubKey);
     } catch (error: any) {
@@ -101,7 +101,7 @@ export default function Home() {
       return;
     }
     try {
-      const sig = ''; //await signMessage(message);
+      const sig = await signMessage(message);
       toast.success(sig);
     } catch (error: any) {
       toast.error(error.message || 'sign message error');
@@ -154,7 +154,8 @@ export default function Home() {
     const chainId = Number(e.target.value);
     if (chainId) {
       try {
-        //await switchChain(chainId);
+        const hexChainId = '0x' + chainId.toString(16);
+        await switchNetwork(hexChainId);
       } catch (error: any) {
         toast.error(error.message || 'switch chain error');
         console.log('🚀 ~ onSwitchChain ~ error:', error);
@@ -337,37 +338,71 @@ export default function Home() {
             <div className="overflow-hidden text-ellipsis whitespace-nowrap">Type: {connector.metadata.type}</div>
             <div className="overflow-hidden text-ellipsis whitespace-nowrap">Addresses: {accounts.join(', ')}</div>
 
-            <Button color="primary" onClick={onGetNetwork}>
-              Get Network
-            </Button>
+            {connector.metadata.type === 'uxto' && (
+              <>
+                <Button color="primary" onClick={onGetNetwork}>
+                  Get Network
+                </Button>
 
-            <Button color="primary" onClick={onSwitchNetwork}>
-              Change Network
-            </Button>
+                <Button color="primary" onClick={onSwitchNetwork}>
+                  Change Network
+                </Button>
 
-            <Button color="primary" onClick={onGetPubkey}>
-              Get Pubkey
-            </Button>
+                <Button color="primary" onClick={onGetPubkey}>
+                  Get Pubkey
+                </Button>
 
-            <Divider />
-            <Input label="Message" value={message} onValueChange={setMessage}></Input>
-            <Button color="primary" onClick={onSignMessage}>
-              Sign Message
-            </Button>
+                <Divider />
+                <Input label="Message" value={message} onValueChange={setMessage}></Input>
+                <Button color="primary" onClick={onSignMessage}>
+                  Sign Message
+                </Button>
 
-            <Divider />
-            <Input label="Address" value={address} onValueChange={setAddress}></Input>
-            <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
-            <Button color="primary" onClick={onSendBitcoin}>
-              Send Bitcoin
-            </Button>
+                <Divider />
+                <Input label="Address" value={address} onValueChange={setAddress}></Input>
+                <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
+                <Button color="primary" onClick={onSendBitcoin}>
+                  Send Bitcoin
+                </Button>
+              </>
+            )}
+            {connector.metadata.type === 'eth' && (
+              <>
+                <Button color="primary" onClick={onGetNetwork}>
+                  Get Network
+                </Button>
+
+                <Select
+                  label="Switch Chain"
+                  size="sm"
+                  selectedKeys={chainId ? [chainId?.toString()] : []}
+                  onChange={onSwitchChain}
+                  isRequired
+                >
+                  {[200901, 200810, 3636, 2442, 1123, 223, 5000, 5003, 2648, 111, 60808, 137, 89682]?.map?.((chainId) => {
+                    const chain = chains.getEVMChainInfoById(chainId)!;
+                    return (
+                      <SelectItem key={chain.id} value={chain.id}>
+                        {chain.fullname}
+                      </SelectItem>
+                    );
+                  })}
+                </Select>
+
+                <Input label="Message" value={message} onValueChange={setMessage}></Input>
+                <Button color="primary" onClick={onSignMessage}>
+                  Sign Message
+                </Button>
+              </>
+            )}
+
           </>
         )}
       </div>
 
       <div className="dark:bg-slate-800 mt-12 flex h-auto w-[40rem] max-w-full flex-col gap-4 rounded-lg p-4 shadow-md">
         <Image src={bitcoinIcon} alt="" className="inline h-10 w-10 rounded-full"></Image>
-        <div className="mb-4 text-2xl font-bold">Bitcoin</div>
+        <div className="mb-4 text-2xl font-bold">Smart Vault: Bitcoin</div>
 
         <div className="overflow-hidden text-ellipsis whitespace-nowrap">BTC Addresses:</div>
 
@@ -424,7 +459,7 @@ export default function Home() {
       </div>
 
       <div className="dark:bg-slate-800 relative mb-20 mt-20 flex h-auto w-[40rem] max-w-full flex-col gap-4 rounded-lg p-4 shadow-md">
-        <div className="mb-4 text-2xl font-bold">EVM</div>
+        <div className="mb-4 text-2xl font-bold">Smart Vault: Ethereum</div>
         {smartVault && (
           <Image src={infoIcon} alt="" className="absolute right-4 mt-1 cursor-pointer" onClick={infoOnOpen}></Image>
         )}

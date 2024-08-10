@@ -1,10 +1,10 @@
 import coinSelect from "../lib/coinselect-segwit";
 import { networks, payments, Psbt, Transaction } from 'bitcoinjs-lib';
 import { ECPairFactory } from "ecpair";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import ecc from '@bitcoinerlab/secp256k1';
 import { toOutputScript } from "bitcoinjs-lib/src/address";
 
-const btcApiEndpoint = "https://mempool.space";
+const btcApiEndpoint2 = "https://mempool.space";
 
 export interface WitnessUtxo {
   script: Buffer;
@@ -166,7 +166,7 @@ export const broadcastBtcTransaction = async (
 ): Promise<string> => {
   try {
     const response = await fetch(
-      `${btcApiEndpoint}/${btcTestNet ? "testnet/" : null}api/tx`,
+      `${btcApiEndpoint2}/${btcTestNet ? "testnet/" : null}api/tx`,
       {
         method: "POST",
         body: txHex,

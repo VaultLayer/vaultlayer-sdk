@@ -1,4 +1,4 @@
-import { type CSSProperties } from 'react';
+import React, { type CSSProperties } from 'react';
 import styles from './spinner.module.scss';
 
 const Spinner = ({ className, style }: { className?: string; style?: CSSProperties | undefined }) => {

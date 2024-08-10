@@ -121,7 +121,7 @@ export class EthereumConnector extends BaseConnector {
               method: "wallet_addEthereumChain",
               params: [
                 {
-                  chainId: chain.id,
+                  chainId: '0x' + chain.id.toString(16),
                   chainName: chain.fullname,
                   rpcUrls: [chain.rpcUrl],
                   blockExplorerUrls: [chain.blockExplorerUrl],

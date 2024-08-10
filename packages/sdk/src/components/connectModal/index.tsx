@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { type BaseConnector } from '../../connector/base';
 import { useConnectProvider } from '../../context';
 import { useConnector } from '../../hooks';

@@ -1,5 +1,4 @@
-import { chains } from '@particle-network/chains';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatEther, hexToString, type Hex } from 'viem';
 import { useConnectProvider } from '../../context';
 import { useVaultProvider } from '../../hooks';
@@ -16,6 +15,8 @@ import Button from '../button';
 import CopyText from '../copyText';
 import Modal from '../modal';
 import styles from './sign.module.scss';
+
+import { chains } from '@particle-network/chains';
 
 interface RequestArguments {
   method: string;

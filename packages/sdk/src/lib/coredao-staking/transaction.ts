@@ -11,8 +11,8 @@ import { Provider } from "./provider";
 import coinSelect from "../coinselect-segwit";
 // eslint-disable-next-line no-use-before-define
 import split from "../coinselect-segwit/split";
-import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { ECPairFactory } from "ecpair";
+import ecc from '@bitcoinerlab/secp256k1';
 import { CoreChainNetworks, FeeSpeedType } from "./constant";
 import { getAddressType } from "./address";
 

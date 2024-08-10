@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import styles from './tooltip.module.scss';
 
 const Tooltip = ({ children, content, className }: { children: ReactNode; content: string; className?: string }) => {

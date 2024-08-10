@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type MouseEventHandler, type ReactNode } from 'react';
+import React, { useEffect, useMemo, useState, type CSSProperties, type MouseEventHandler, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RemoveScroll } from 'react-remove-scroll';
 import styles from './modal.module.scss';
