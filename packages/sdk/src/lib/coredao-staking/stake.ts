@@ -9,7 +9,6 @@ export const stake = async ({
   amount,
   validatorAddress,
   rewardAddress,
-  privateKey,
   publicKey,
   coreNetwork = "mainnet",
   bitcoinNetwork = "mainnet",
@@ -43,7 +42,7 @@ export const stake = async ({
   if (!rewardAddress) {
     throw new Error("rewardAddress should not be empty");
   }
-
+  // eslint-disable-next-line no-use-before-define
   const { txId, scriptAddress, redeemScript } = await buildStakeTransaction({
     witness,
     lockTime: Number(lockTime),
@@ -53,7 +52,6 @@ export const stake = async ({
     rewardAddress,
     type: RedeemScriptType.PUBLIC_KEY_HASH_SCRIPT,
     publicKey,
-    privateKey,
     bitcoinNetwork,
     coreNetwork,
     bitcoinRpc,

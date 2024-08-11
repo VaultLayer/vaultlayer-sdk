@@ -12,6 +12,8 @@ import {
   useConnectModal,
   useConnector,
   useVaultProvider,
+  useBitcoinProvider,
+  useEthereumProvider,
   useWalletProvider,
   type BaseConnector,
 } from '@vaultlayer/sdk';
@@ -36,9 +38,12 @@ const personalSignMessage =
 export default function Home() {
   const { openConnectModal, disconnect } = useConnectModal();
   // Connected wallet accounts:
-  const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } = useWalletProvider();
+  const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } =
+    useWalletProvider();
   // Smart Vault accounts:
-  const { smartVault, vaultEthClient, network, chainId } = useVaultProvider();
+  const { smartVault } = useVaultProvider();
+  const ethProvider = useEthereumProvider();
+  const btcProvider = useBitcoinProvider();
   const [gasless, setGasless] = useState<boolean>(false);
   const [forceHideModal, setForceHideModal] = useState<boolean>(false);
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
@@ -163,6 +168,49 @@ export default function Home() {
     }
   };
 
+  const onGetVaultNetwork = async () => {
+    try {
+      const network = await btcProvider.getNetwork();
+      toast.success(network);
+    } catch (error: any) {
+      console.log('🚀 ~ onGetVaultNetwork ~ error:', error);
+      toast.error(error.message || 'get vaultBtcNetwork error');
+    }
+  };
+
+  const onSwitchVaultNetwork = async () => {
+    try {
+      const network = await btcProvider.getNetwork();
+      const changeTo = network === 'livenet' ? 'testnet' : 'livenet';
+      await btcProvider.switchNetwork(changeTo);
+      toast.success(`Change To ${changeTo}`);
+    } catch (error: any) {
+      console.log('🚀 ~ onSwitchNetwork ~ error:', error);
+      toast.error(error.message || 'switch chain error');
+    }
+  };
+
+  const onSendVaultBitcoin = async () => {
+    if (!address) {
+      toast.error('Please enter the address');
+      return;
+    }
+    if (!satoshis) {
+      toast.error('Please enter the amount');
+      return;
+    }
+    try {
+      const txId = await btcProvider.sendBitcoin(btcProvider.btcAccounts[0].address, address, Number(satoshis), {
+        fee: 'avg',
+        bitcoinRpc: 'mempool',
+      });
+      toast.success(txId);
+    } catch (error: any) {
+      toast.error(error.message || 'send bitcoin error');
+      console.log('🚀 ~ onSendBitcoin ~ error:', error);
+    }
+  };
+
   const { run: onSendUserOp, loading: sendUserOpLoading } = useRequest(
     async () => {
       if (txDatas.some((tx) => !isAddress(tx.to) || !isHex(tx.data) || !isHex(tx.value))) {
@@ -177,7 +225,7 @@ export default function Home() {
       onSuccess: (hash) => {
         toast.success('Send Success!', {
           onClick: () => {
-            const chain = chains.getEVMChainInfoById(chainId ?? 0);
+            const chain = chains.getEVMChainInfoById(ethProvider.chainId ?? 0);
             if (chain) {
               window.open(`${chain.blockExplorerUrl}/tx/${hash}`, '_blank');
             }
@@ -240,6 +288,10 @@ export default function Home() {
       },
     }
   );
+
+  useEffect(() => {
+    setDirectConnectors(connectors.filter((item) => item.isReady()));
+  }, [connectors]);
 
   useEffect(() => {
     setDirectConnectors(connectors.filter((item) => item.isReady()));
@@ -372,21 +424,17 @@ export default function Home() {
                   Get Network
                 </Button>
 
-                <Select
-                  label="Switch Chain"
-                  size="sm"
-                  selectedKeys={chainId ? [chainId?.toString()] : []}
-                  onChange={onSwitchChain}
-                  isRequired
-                >
-                  {[200901, 200810, 3636, 2442, 1123, 223, 5000, 5003, 2648, 111, 60808, 137, 89682]?.map?.((chainId) => {
-                    const chain = chains.getEVMChainInfoById(chainId)!;
-                    return (
-                      <SelectItem key={chain.id} value={chain.id}>
-                        {chain.fullname}
-                      </SelectItem>
-                    );
-                  })}
+                <Select label="Switch Chain" size="sm" onChange={onSwitchChain} isRequired>
+                  {[200901, 200810, 3636, 2442, 1123, 223, 5000, 5003, 2648, 111, 60808, 137, 89682]?.map?.(
+                    (chainId) => {
+                      const chain = chains.getEVMChainInfoById(chainId)!;
+                      return (
+                        <SelectItem key={chain.id} value={chain.id}>
+                          {chain.fullname}
+                        </SelectItem>
+                      );
+                    }
+                  )}
                 </Select>
 
                 <Input label="Message" value={message} onValueChange={setMessage}></Input>
@@ -395,7 +443,6 @@ export default function Home() {
                 </Button>
               </>
             )}
-
           </>
         )}
       </div>
@@ -406,10 +453,12 @@ export default function Home() {
 
         <div className="overflow-hidden text-ellipsis whitespace-nowrap">BTC Addresses:</div>
 
-        {smartVault?.btcAddresses.map((btcAddress, index) => {
+        {btcProvider.btcAccounts.map((btcAddress: any, index: number) => {
           return (
             <div key={index}>
+              <div className="overflow-hidden text-ellipsis whitespace-nowrap">Network: {btcAddress.network}</div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Address: {btcAddress.address}</div>
+              <div className="overflow-hidden text-ellipsis whitespace-nowrap">PubKey: {btcAddress.publicKey}</div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Type: {btcAddress.type}</div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Purpose: {btcAddress.purpose}</div>
               <Divider className="my-4"></Divider>
@@ -417,28 +466,20 @@ export default function Home() {
           );
         })}
 
-        <Button color="primary" onClick={onGetNetwork}>
+        <Button color="primary" onClick={onGetVaultNetwork}>
           Get Network
         </Button>
 
-        <Button color="primary" onClick={onSwitchNetwork}>
+        <Button color="primary" onClick={onSwitchVaultNetwork}>
           Change Network
         </Button>
 
-        <Button color="primary" onClick={onGetPubkey}>
-          Get Pubkey
-        </Button>
-
         <Divider />
-        <Input label="Message" value={message} onValueChange={setMessage}></Input>
-        <Button color="primary" onClick={onSignMessage}>
-          Sign Message
-        </Button>
 
         <Divider />
         <Input label="Address" value={address} onValueChange={setAddress}></Input>
         <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
-        <Button color="primary" onClick={onSendBitcoin}>
+        <Button color="primary" onClick={onSendVaultBitcoin}>
           Send Bitcoin
         </Button>
 
@@ -465,11 +506,11 @@ export default function Home() {
         )}
 
         <div className="overflow-hidden text-ellipsis whitespace-nowrap">Address: {smartVault?.ethAddress}</div>
-        <div className="overflow-hidden text-ellipsis whitespace-nowrap">ChainId: {chainId}</div>
+        <div className="overflow-hidden text-ellipsis whitespace-nowrap">ChainId: {ethProvider.chainId}</div>
         <Select
           label="Switch Chain"
           size="sm"
-          selectedKeys={chainId ? [chainId?.toString()] : []}
+          selectedKeys={ethProvider.chainId ? [ethProvider.chainId?.toString()] : []}
           onChange={onSwitchChain}
           isRequired
         >

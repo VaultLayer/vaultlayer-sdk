@@ -21,7 +21,6 @@ function btcSignatureToEvmSignature(bitcoinSignature: string) {
 }
 */
 
-
 export const convertSignature = (signature: string) => {
   const sig = (bitcore.crypto.Signature as any).fromCompact(Buffer.from(signature, 'base64'));
   const v = BigInt(sig.i + 27);

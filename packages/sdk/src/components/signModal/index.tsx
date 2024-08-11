@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatEther, hexToString, type Hex } from 'viem';
 import { useConnectProvider } from '../../context';
-import { useVaultProvider } from '../../hooks';
+import { useEthereumProvider } from '../../hooks';
 import checkBox from '../../icons/check_box';
 import checkBoxBlank from '../../icons/check_box_blank';
 import close from '../../icons/close';
@@ -34,7 +34,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
   const [requestArguments, setRequestArguments] = useState<RequestArguments>();
   const [vaultSignArguments, setVaultSignArguments] = useState<any>();
 
-  const { chainId, smartVault, vaultEthWallet } = useVaultProvider();
+  const { chainId, smartVault, vaultEthWallet } = useEthereumProvider();
 
   useEffect(() => {
     if (!open) {
@@ -132,7 +132,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     setLoading(true);
     if (requestArguments && requestArguments?.params) {
       try {
-        const hash = await vaultEthWallet.signMessage(requestArguments?.params[0]);
+        const hash = await vaultEthWallet?.signMessage(requestArguments?.params[0]);
         events.emit(
           requestArguments.method == EthMethod.personalSign
             ? EventName.personalSignResult
@@ -164,7 +164,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     }
 
     onClose();
-  }, [requestArguments, vaultSignArguments, onClose]);
+  }, [vaultEthWallet, requestArguments, vaultSignArguments, onClose]);
 
   /*
   useEffect(() => {

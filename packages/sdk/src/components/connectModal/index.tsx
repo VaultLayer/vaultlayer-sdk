@@ -42,7 +42,7 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
     if (connector.isReady()) {
       try {
         await connect(connector.metadata.id);
-        setConnectorReady(true);        
+        setConnectorReady(true);
       } catch (error: any) {
         console.error('onConnect error', error);
         if (error.code === 4001) {
@@ -73,13 +73,13 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
     <Modal open={open} onClose={onClose} isDismissable={false} contentClassName={styles.connectModal}>
       <div className={styles.title}>{selectConnector?.metadata.name || 'Wallet to open Smart Vault'}</div>
       <img className={styles.closeBtn} src={close} onClick={onClose}></img>
-      {backVisible && <img className={styles.backBtn} src={back} onClick={onBack} alt={''}/>}
+      {backVisible && <img className={styles.backBtn} src={back} onClick={onBack} alt={''} />}
 
       {!backVisible &&
         connectors.map((connector) => {
           return (
             <div className={styles.walletItem} key={connector.metadata.id} onClick={() => onConnect(connector)}>
-              <img className={styles.walletIcon} src={connector.metadata.icon} alt={''}/>
+              <img className={styles.walletIcon} src={connector.metadata.icon} alt={''} />
               <div className={styles.walletName}>{connector.metadata.name}</div>
             </div>
           );
@@ -88,10 +88,10 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
       {backVisible && selectConnector && !connectorReady && (
         <div className={styles.connecting}>
           <div className={styles.connectingIconContainer}>
-            <img className={styles.connectingIcon} src={selectConnector.metadata.icon} alt={''}/>
+            <img className={styles.connectingIcon} src={selectConnector.metadata.icon} alt={''} />
             {retryVisible && (
               <div className={styles.retryContainer} onClick={onRetry}>
-                <img className={styles.retryIcon} src={retryIcon} alt={''}/>
+                <img className={styles.retryIcon} src={retryIcon} alt={''} />
               </div>
             )}
           </div>
@@ -121,24 +121,23 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
       )}
 
-{backVisible && connectorReady && (
+      {backVisible && connectorReady && (
         <div className={styles.connecting}>
           <div className={styles.connectingIconContainer}>
-            <img className={styles.connectingIcon} src={vaultIcon} alt={''}/>
+            <img className={styles.connectingIcon} src={vaultIcon} alt={''} />
             {retryVisible && (
               <div className={styles.retryContainer} onClick={onRetry}>
-                <img className={styles.retryIcon} src={retryIcon} alt={''}/>
+                <img className={styles.retryIcon} src={retryIcon} alt={''} />
               </div>
             )}
           </div>
-            
-              <div className={styles.connection}>{retryVisible ? 'Request Cancelled' : 'Sign-in to Smart Vault'}</div>
-              <div className={styles.acceptRequest}>
-                {retryVisible
-                  ? 'You cancelled the request.\nClick above to try again.'
-                  : 'Accept the request through your wallet to sign-in to Smart Vault.'}
-              </div>
-            
+
+          <div className={styles.connection}>{retryVisible ? 'Request Cancelled' : 'Sign-in to Smart Vault'}</div>
+          <div className={styles.acceptRequest}>
+            {retryVisible
+              ? 'You cancelled the request.\nClick above to try again.'
+              : 'Accept the request through your wallet to sign-in to Smart Vault.'}
+          </div>
         </div>
       )}
     </Modal>

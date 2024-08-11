@@ -1,5 +1,5 @@
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@nextui-org/react';
-import { useVaultProvider } from '@vaultlayer/sdk';
+import { useEthereumProvider } from '@vaultlayer/sdk';
 
 import { useRequest } from 'ahooks';
 import { useCallback } from 'react';
@@ -18,8 +18,8 @@ export const VerifyModal = ({
     data: any;
   };
 }) => {
-  const { smartVault, vaultEthClient } = useVaultProvider();
-
+  const { smartVault, vaultEthClient } = useEthereumProvider();
+  /* TODO
   const verifyPersonalSign = useCallback(async () => {
     if (!vaultEthClient || !signData || !smartVault) {
       throw new Error('params error');
@@ -45,18 +45,14 @@ export const VerifyModal = ({
     });
     return result;
   }, [vaultEthClient, smartVault, signData]);
-
+*/
   const { run: onVerify, loading: verifyLoading } = useRequest(
     async () => {
-      const code = await vaultEthClient!.getBytecode({ address: smartVault?.ethAddress as Hex });
-      if (!code) {
-        throw new Error('The smart account not deploy.');
-      }
-
+      //TODO
       if (typeof signData?.data === 'string') {
-        return await verifyPersonalSign();
+        return true; //await verifyPersonalSign();
       } else {
-        return await verifySignTypedData();
+        return false; //await verifySignTypedData();
       }
     },
     {

@@ -82,7 +82,7 @@ export class XverseConnector extends BaseConnector {
     if (!this.isReady()) {
       throw new Error(`${this.metadata.name} is not install!`);
     }
-    console.log('signMessage signStr',signStr);
+    console.log('signMessage signStr', signStr);
     const addresses = await this.getAccounts();
     if (addresses.length === 0) {
       throw new Error(`${this.metadata.name} not connected!`);
@@ -115,7 +115,7 @@ export class XverseConnector extends BaseConnector {
 
     const modifiedSig = Buffer.from(sig, 'base64');
     modifiedSig[0] = 31 + ((modifiedSig[0] - 31) % 4);
-    console.log('signMessage sig',modifiedSig.toString('base64'));
+    console.log('signMessage sig', modifiedSig.toString('base64'));
     return modifiedSig.toString('base64');
   }
   on(event: string, handler: (data?: unknown) => void) {

@@ -8,29 +8,31 @@ import events from '../utils/eventUtils';
 import { convertSignature, pubKeyToEthAddress } from '../utils/ethereumUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
+import type { SignerAsync } from 'bitcoinjs-lib';
 import { LitAuthClient } from '@lit-protocol/lit-auth-client';
 import { LitNodeClient } from '@lit-protocol/lit-node-client';
-import { LitNodeClientConfig, AuthMethod, IRelayPKP, AuthCallbackParams, LIT_NETWORKS_KEYS,  } from '@lit-protocol/types';
+import type { LitNodeClientConfig, AuthMethod, IRelayPKP, LIT_NETWORKS_KEYS } from '@lit-protocol/types';
+import { AuthCallbackParams } from '@lit-protocol/types';
 import { AuthMethodType } from '@lit-protocol/constants';
 import { LitAbility, LitPKPResource, LitActionResource } from '@lit-protocol/auth-helpers';
-import { PKPEthersWallet } from "@lit-protocol/pkp-ethers";
-import {
-  authenticateWithGoogle,
-  authenticateWithEthWallet,
-  getPKPs,
-  mintPKP,
-  signWithLitAction
-} from '../utils/lit';
-import {
-  getBtcAccounts,
-  BTCAddress
-} from '../utils/bitcoinUtils';
+import { PKPEthersWallet } from '@lit-protocol/pkp-ethers';
+import { authenticateWithGoogle, authenticateWithEthWallet, getPKPs, mintPKP, signWithLitAction } from '../utils/lit';
+import type { BTCAddress } from '../utils/bitcoinUtils';
+import { getBtcPubkey, getBtcAccounts } from '../utils/bitcoinUtils';
 
 import ModalView from '../components/modalView';
 
 export interface Vault extends IRelayPKP {
-  btcAddresses: BTCAddress[];
+  btcPubKey: string;
   signer?: any;
+}
+
+export interface VaultEthWallet extends PKPEthersWallet {
+  options?: any;
+}
+
+export interface VaultBtcSigner extends SignerAsync {
+  options?: any;
 }
 
 interface GlobalState {
@@ -51,17 +53,17 @@ interface GlobalState {
   vaults?: Vault[];
   getVaults: (litAuthClient: LitAuthClient, authMethod: AuthMethod) => Promise<Vault[] | []>;
   createVault: (litAuthClient: LitAuthClient, authMethod: AuthMethod) => Promise<Vault | undefined>;
-  vaultBtcSigner?: any;
-  vaultEthWallet?: any;
+  btcNetwork: 'testnet' | 'livenet';
+  btcAccounts: BTCAddress[];
+  vaultBtcSigner?: VaultBtcSigner;
+  vaultEthWallet?: VaultEthWallet;
   vaultWalletConnect?: any;
-  getNetwork: () => Promise<string>;
-  switchNetwork: (network: string) => Promise<void>;
-  sendBitcoin: (toAddress: string, satoshis: number, options?: { feeRate: number }) => Promise<string>;
+  switchBtcNetwork: (network: 'testnet' | 'livenet') => Promise<'testnet' | 'livenet'>;
 }
 
 const ConnectContext = createContext<GlobalState>({} as any);
 
-const LIT_NETWORK = process.env.LIT_NETWORK as LIT_NETWORKS_KEYS || 'datil-dev' as LIT_NETWORKS_KEYS;
+const LIT_NETWORK = (process.env.LIT_NETWORK as LIT_NETWORKS_KEYS) || ('datil-dev' as LIT_NETWORKS_KEYS);
 const RELAYER_LIT_API = process.env.LIT_API_KEY || 'test-api-key';
 
 const litClientConfig: LitNodeClientConfig = {
@@ -98,15 +100,16 @@ export const ConnectProvider = ({
 
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [smartVault, setSmartVault] = useState<Vault | undefined>(undefined);
-  const [vaultBtcSigner, setVaultBtcSigner] = useState<any | null>(null);
-  const [vaultEthWallet, setVaultEthWallet] = useState<any | null>(null);
+  const [vaultBtcSigner, setVaultBtcSigner] = useState<VaultBtcSigner | undefined>(undefined);
+  const [btcNetwork, setBtcNetwork] = useState<'testnet' | 'livenet'>('testnet');
+  const [btcAccounts, setBtcAccounts] = useState<BTCAddress[]>([]);
+  const [vaultEthWallet, setVaultEthWallet] = useState<VaultEthWallet | undefined>(undefined);
   const [vaultWalletConnect, setVaultWalletConnect] = useState<any | null>(null);
   const [showVault, setShowVault] = useState<boolean>(false);
-  
 
   /**
-  * Browser wallet connectors
-  */
+   * Browser wallet connectors
+   */
   useEffect(() => {
     const id = localStorage.getItem('current-connector-id');
     if (autoConnect && id) {
@@ -124,24 +127,6 @@ export const ConnectProvider = ({
     return connectors.find((item) => item.metadata.id === connectorId);
   }, [connectorId, connectors]);
 
-  const getNetwork = useCallback(async () => {
-    if (!connector) {
-      throw new Error('Wallet not connected!');
-    }
-    const network = await connector.getNetwork();
-    return network;
-  }, [connector]);
-
-  const switchNetwork = useCallback(
-    async (network: string) => {
-      if (!connector) {
-        throw new Error('Wallet not connected!');
-      }
-      await connector.switchNetwork(network);
-    },
-    [connector]
-  );
-
   useEffect(() => {
     const requestAccounts = async () => {
       if (connector?.isReady()) {
@@ -152,13 +137,12 @@ export const ConnectProvider = ({
         }
         setAccounts(getAccounts);
       }
-    }
+    };
     if (accounts.length === 0 && autoConnect) {
       requestAccounts().catch((e: any) => {
         console.log('get accounts error', e);
         setAccounts([]);
       });
-
     } else {
       setAccounts([]);
     }
@@ -173,7 +157,6 @@ export const ConnectProvider = ({
       connector?.removeListener('accountsChanged', onAccountChange as any);
     };
   }, [connector]);
-
 
   const getPublicKey = useCallback(async () => {
     if (!connector) {
@@ -219,23 +202,9 @@ export const ConnectProvider = ({
     [connector]
   );
 
-  const sendBitcoin = useCallback(
-    async (toAddress: string, satoshis: number, options?: { feeRate: number }) => {
-      if (!connector) {
-        throw new Error('Wallet not connected!');
-      }
-
-      const signature = await connector.sendBitcoin(toAddress, satoshis, options);
-      return signature;
-    },
-    [connector]
-  );
-
-
-
   /*
    * Initialize LitNodeClient and LitAuthClient
-  */
+   */
   useEffect(() => {
     const litConnect = async () => {
       const client = new LitNodeClient(litClientConfig);
@@ -245,25 +214,23 @@ export const ConnectProvider = ({
         litRelayConfig: {
           relayApiKey: RELAYER_LIT_API,
         },
-        litNodeClient: client
+        litNodeClient: client,
       });
       setLitNodeClient(client);
       setLitAuthClient(authClient);
-    }
+    };
 
     if (!litNodeClient || !litNodeClient?.ready) {
-      litConnect()
-        .catch(console.error);
+      litConnect().catch(console.error);
     }
   }, [litNodeClient]);
 
   // Unmount
-  useEffect( () => () => disconnect(), [] );
-
+  useEffect(() => () => disconnect(), []);
 
   /*
    * Initialize authMethod
-  */
+   */
 
   useEffect(() => {
     const authWithEthWallet = async () => {
@@ -295,15 +262,13 @@ export const ConnectProvider = ({
         setAuthMethod(undefined);
         console.error('authWithEthWallet error', e);
       }
-    }
+    };
 
     if (accounts.length > 0 && litNodeClient?.ready && !authMethod) {
       console.log('calling authWithEthWallet');
-      authWithEthWallet()
-        .catch(console.error);
+      authWithEthWallet().catch(console.error);
     }
   }, [accounts]);
-
 
   /**
    * Mint a new PKP for current auth method
@@ -313,18 +278,16 @@ export const ConnectProvider = ({
       try {
         const newPKP = await mintPKP(litAuthClient, authMethod);
         console.log('createVault pkp: ', newPKP);
-        //TODO const network = ?????
-        const testnet = true;
         const newVault = {
           ...newPKP,
-          btcAddresses: getBtcAccounts(newPKP.publicKey, testnet)
-        }
-        setVaults(prev => [...prev, newVault]);
+          btcPubKey: getBtcPubkey(newPKP.publicKey),
+        };
+        setVaults((prev) => [...prev, newVault]);
         setSmartVault(newVault);
         return newVault;
       } catch (e) {
         console.error('createVault error', e);
-      }      
+      }
     },
     [litAuthClient]
   );
@@ -344,7 +307,7 @@ export const ConnectProvider = ({
           //map
           const myVaults = myPKPs.map((v) => ({
             ...v,
-            btcAddresses: getBtcAccounts(v.publicKey, testnet)
+            btcPubKey: getBtcPubkey(v.publicKey),
           }));
           console.log('getVaults myVaults: ', myVaults);
           setVaults(myVaults);
@@ -355,7 +318,6 @@ export const ConnectProvider = ({
           if (newVault) return [newVault];
           else return [];
         }
-        
       } catch (e) {
         console.error('getVaults error', e);
         return [];
@@ -364,9 +326,9 @@ export const ConnectProvider = ({
     [litAuthClient, createVault]
   );
 
-  /* 
-  * set smartValut
-  */
+  /*
+   * set smartValut
+   */
   useEffect(() => {
     if (authMethod && litAuthClient && vaults.length == 0) {
       console.log('calling getVaults');
@@ -376,41 +338,37 @@ export const ConnectProvider = ({
     }
   }, [litAuthClient, authMethod, getVaults]);
 
-
-
   /**
    * Create ETH vaultEthClient
    */
   const connectVaultEthClient = useCallback(async () => {
     if (smartVault && litNodeClient && authMethod && !vaultEthWallet) {
       console.log('connectVaultEthClient start');
-      try {        
+      try {
         const controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
           pkpPublicKey: smartVault.publicKey,
           authMethods: [authMethod],
-          chain: "ethereum",
+          chain: 'ethereum',
           resourceAbilityRequests: [
-              {
-                  resource: new LitPKPResource("*"),
-                  ability: LitAbility.PKPSigning,
-              },
-              {
-                  resource: new LitActionResource("*"),
-                  ability: LitAbility.LitActionExecution,
-              },
+            {
+              resource: new LitPKPResource('*'),
+              ability: LitAbility.PKPSigning,
+            },
+            {
+              resource: new LitActionResource('*'),
+              ability: LitAbility.LitActionExecution,
+            },
           ],
-      });
+        });
         console.log('connectVaultEthClient controllerSessionSigs', controllerSessionSigs);
         const pkpWallet = new PKPEthersWallet({
           controllerSessionSigs,
           litNodeClient,
           pkpPubKey: smartVault.publicKey,
-      });
+        });
         await pkpWallet!.init();
         console.log('connectVaultEthClient pkpWallet:', pkpWallet);
-
         setVaultEthWallet(pkpWallet);
-
       } catch (e) {
         setVaultEthWallet(undefined);
         console.error('connectVaultEthClient error', e);
@@ -427,30 +385,46 @@ export const ConnectProvider = ({
     }
   }, [smartVault, connectVaultEthClient]);
 
+  // <ModalView />
+  useEffect(() => {
+    if (smartVault && options.vaultOptions?.visible !== false) {
+      setShowVault(true);
+    }
+  }, [smartVault]);
 
- // <ModalView />
- useEffect(() => {
-  if (smartVault && options.vaultOptions?.visible !== false) {
-    setShowVault(true);
-  }
-}, [smartVault]);
+  const switchBtcNetwork = useCallback(
+    async (network: 'testnet' | 'livenet') => {
+      if (!smartVault) {
+        throw new Error('smartVault not connected!');
+      }
+      setBtcNetwork(network);
+      return network;
+    },
+    [smartVault]
+  );
 
+  useEffect(() => {
+    if (smartVault) {
+      const res = getBtcAccounts(smartVault?.btcPubKey, btcNetwork);
+      setBtcAccounts(res);
+    }
+  }, [smartVault, btcNetwork]);
 
   /*
-  * Create BTC vaultBtcSigner
-  */
+   * Create BTC vaultBtcSigner
+   */
   useEffect(() => {
     if (smartVault && litNodeClient?.ready && !vaultBtcSigner) {
       console.log('creating vaultBtcSigner');
       const signer = {
-        publicKey: Buffer.from(smartVault?.btcAddresses[0].publicKey, "hex"),
+        publicKey: Buffer.from(smartVault?.btcPubKey, 'hex'),
         sign: (hash: Buffer, lowerR: boolean): Promise<Buffer> => {
           console.log('calling vaultBtcSigner signWithLitAction with hash', hash);
           return new Promise((resolve, rejects) => {
             console.log('calling vaultBtcSigner signWithLitAction with authMethod', authMethod);
             signWithLitAction(litNodeClient, litAuthClient, authMethod, hash, smartVault.publicKey)
               .then(function (sig) {
-                let signatureBuf = Buffer.from((sig as any).r + (sig as any).s, "hex");
+                const signatureBuf = Buffer.from((sig as any).r + (sig as any).s, 'hex');
                 resolve(signatureBuf);
               })
               .catch(function (reason) {
@@ -463,7 +437,6 @@ export const ConnectProvider = ({
       setVaultBtcSigner(signer);
     }
   }, [smartVault]);
-
 
   const disconnect = useCallback(() => {
     console.log('disconnecting');
@@ -534,16 +507,16 @@ export const ConnectProvider = ({
         getVaults,
         createVault,
         vaultBtcSigner,
+        btcNetwork,
+        btcAccounts,
+        switchBtcNetwork,
         vaultEthWallet,
-        getNetwork,
-        switchNetwork,
-        sendBitcoin
       }}
     >
       {children}
       <ConnectModal open={connectModalOpen} onClose={closeConnectModal} />
       <SignModal open={signModalOpen} onClose={closeSignModal} onOpen={openSignModal} />
-      {showVault && (<ModalView />)}
+      {showVault && <ModalView />}
     </ConnectContext.Provider>
   );
 };

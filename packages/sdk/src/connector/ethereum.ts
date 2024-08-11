@@ -35,7 +35,7 @@ export class EthereumConnector extends BaseConnector {
       throw new Error(`${this.metadata.name} is not installed!`);
     }
     const accounts = await (window as any).ethereum.request({
-      method: "eth_requestAccounts",
+      method: 'eth_requestAccounts',
     });
     return accounts.map((item: string) => ethers.utils.getAddress(item));
   }
@@ -45,7 +45,7 @@ export class EthereumConnector extends BaseConnector {
       throw new Error(`${this.metadata.name} is not installed!`);
     }
     const accounts = await (window as any).ethereum.request({
-      method: "eth_accounts",
+      method: 'eth_accounts',
     });
     return accounts.map((item: string) => ethers.utils.getAddress(item));
   }
@@ -54,27 +54,25 @@ export class EthereumConnector extends BaseConnector {
     throw new Error('Unsupported');
   }
 
-
   async signMessage(signStr: string): Promise<string> {
     if (!this.isReady()) {
       throw new Error(`${this.metadata.name} is not installed!`);
     }
-    console.log('signMessage signStr',signStr);
+    console.log('signMessage signStr', signStr);
     const addresses = await this.getAccounts();
     if (addresses.length === 0) {
       throw new Error(`${this.metadata.name} not connected!`);
     }
     console.log('signMessage');
-    const provider = new ethers.providers.Web3Provider((window as any).ethereum)
+    const provider = new ethers.providers.Web3Provider((window as any).ethereum);
     //console.log('signMessage provider',provider);
     const signer = await provider.getSigner();
     //console.log('signMessage signer',signer);
-    
-    const sig = await signer.signMessage(signStr);
-    console.log('signMessage sig',sig);
-    return sig;
-    };
 
+    const sig = await signer.signMessage(signStr);
+    console.log('signMessage sig', sig);
+    return sig;
+  }
 
   on(event: string, handler: (data?: unknown) => void) {
     return this.#event.on(event, handler);
@@ -95,7 +93,7 @@ export class EthereumConnector extends BaseConnector {
       throw new Error(`${this.metadata.name} is not installed!`);
     }
     const chainId = await (window as any).ethereum.request({
-      method: "eth_chainId",
+      method: 'eth_chainId',
     });
     console.log('getNetwork: ', parseInt(chainId));
     const network = chains.getEVMChainInfoById(parseInt(chainId));
@@ -109,32 +107,32 @@ export class EthereumConnector extends BaseConnector {
   async switchNetwork(network: string): Promise<void> {
     try {
       await (window as any).ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: network}],
-        });
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: network }],
+      });
     } catch (switchError: any) {
       // This error code indicates that the chain has not been added.
       if (switchError.code === 4902) {
         try {
           const chain: any = chains.getEVMChainInfoById(parseInt(network));
           await (window as any).ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: '0x' + chain.id.toString(16),
-                  chainName: chain.fullname,
-                  rpcUrls: [chain.rpcUrl],
-                  blockExplorerUrls: [chain.blockExplorerUrl],
-                  iconUrls: [chain.icon, chain.nativeIcon],
-                  nativeCurrency: chain.nativeCurrency
-                },
-              ],
-            });
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x' + chain.id.toString(16),
+                chainName: chain.fullname,
+                rpcUrls: [chain.rpcUrl],
+                blockExplorerUrls: [chain.blockExplorerUrl],
+                iconUrls: [chain.icon, chain.nativeIcon],
+                nativeCurrency: chain.nativeCurrency,
+              },
+            ],
+          });
         } catch (e) {
-          console.log('Error on addNetwork',e);
+          console.log('Error on addNetwork', e);
         }
-      };
-    } 
+      }
+    }
   }
 
   async sendBitcoin(toAddress: string, satoshis: number): Promise<string> {
@@ -143,9 +141,10 @@ export class EthereumConnector extends BaseConnector {
 
   async disconnect(): Promise<void> {
     await (window as any).ethereum.request({
-      method: "wallet_revokePermissions",
+      method: 'wallet_revokePermissions',
       params: [
         {
+          // eslint-disable-next-line camelcase
           eth_accounts: {},
         },
       ],

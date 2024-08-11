@@ -109,9 +109,9 @@ function finalize(inputs, outputs, feeRate, changeAddr) {
 
   // is it worth a change output?
   if (remainderAfterExtraOutput > dustThreshold({}, feeRate)) {
-    outputs = outputs.concat({ value: remainderAfterExtraOutput });
+    outputs = outputs.concat({ address: changeAddr, value: remainderAfterExtraOutput });
   }
-
+  
   var fee = sumOrNaN(inputs) - sumOrNaN(outputs);
   if (!isFinite(fee)) return { fee: feeRate * bytesAccum };
 
