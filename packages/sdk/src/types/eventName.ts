@@ -2,8 +2,11 @@ export enum EventName {
   sendUserOp = 'sendUserOp',
   sendUserOpResult = 'sendUserOpResult',
 
-  vaultSign = 'vaultSign',
-  vaultSignResult = 'vaultSignResult',
+  psbtSign = 'psbtSign',
+  psbtSignResult = 'psbtSignResult',
+
+  switchNetwork = 'switchNetwork',
+  switchNetworkResult = 'switchNetworkResult',
 
   personalSign = 'personalSign',
   personalSignResult = 'personalSignResult',

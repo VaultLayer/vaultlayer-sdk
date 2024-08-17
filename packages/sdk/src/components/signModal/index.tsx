@@ -32,13 +32,14 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
 
   // personal_sign or eth_signTypedData
   const [requestArguments, setRequestArguments] = useState<RequestArguments>();
-  const [vaultSignArguments, setVaultSignArguments] = useState<any>();
+  const [signPsbtArguments, setSignPsbtArguments] = useState<any>();
+  const [switchNetworkArguments, setSwitchNetworkArguments] = useState<any>();
 
   const { chainId, smartVault, vaultEthWallet } = useEthereumProvider();
 
   useEffect(() => {
     if (!open) {
-      setVaultSignArguments(undefined);
+      setSignPsbtArguments(undefined);
       setRequestArguments(undefined);
       setLoading(false);
       setNativeBalance(undefined);
@@ -62,9 +63,14 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
   }, [chainId]);
 
   useEffect(() => {
-    const onVaultSign = (arg: any) => {
-      setVaultSignArguments(arg);
-      console.log('vaultSignArguments:', arg);
+    const onPsbtSign = (arg: any) => {
+      setSignPsbtArguments(arg);
+      console.log('signPsbtArguments:', arg);
+      onOpen();
+    };
+    const onSwitchNetwork = (arg: any) => {
+      setSwitchNetworkArguments(arg);
+      console.log('switchNetworkArguments:', arg);
       onOpen();
     };
     const onPersonalSign = (arg: RequestArguments) => {
@@ -75,11 +81,13 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       setRequestArguments(arg);
       onOpen();
     };
-    events.on(EventName.vaultSign, onVaultSign);
+    events.on(EventName.psbtSign, onPsbtSign);
+    events.on(EventName.switchNetwork, onSwitchNetwork);
     events.on(EventName.personalSign, onPersonalSign);
     events.on(EventName.signTypedData, onSignTypedData);
     return () => {
-      events.off(EventName.vaultSign, onVaultSign);
+      events.off(EventName.psbtSign, onPsbtSign);
+      events.on(EventName.switchNetwork, onSwitchNetwork);
       events.off(EventName.personalSign, onPersonalSign);
       events.off(EventName.signTypedData, onSignTypedData);
     };
@@ -112,8 +120,8 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       event = EventName.personalSignResult;
     } else if (requestArguments?.method?.startsWith(EthMethod.signTypedData)) {
       event = EventName.signTypedDataResult;
-    } else if (vaultSignArguments) {
-      event = EventName.vaultSignResult;
+    } else if (signPsbtArguments) {
+      event = EventName.psbtSignResult;
     }
 
     if (event) {
@@ -151,11 +159,21 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       } finally {
         setLoading(false);
       }
-    } else if (vaultSignArguments) {
+    } else if (signPsbtArguments) {
       try {
-        events.emit(EventName.vaultSignResult, { result: vaultSignArguments.pstb });
+        events.emit(EventName.psbtSignResult, { result: signPsbtArguments.pstb });
       } catch (error) {
-        events.emit(EventName.vaultSignResult, {
+        events.emit(EventName.psbtSignResult, {
+          error,
+        });
+      } finally {
+        setLoading(false);
+      }
+    } else if (switchNetworkArguments) {
+      try {
+        events.emit(EventName.switchNetworkResult, { result: switchNetworkArguments.network });
+      } catch (error) {
+        events.emit(EventName.switchNetworkResult, {
           error,
         });
       } finally {
@@ -164,7 +182,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     }
 
     onClose();
-  }, [vaultEthWallet, requestArguments, vaultSignArguments, onClose]);
+  }, [vaultEthWallet, requestArguments, signPsbtArguments, switchNetworkArguments, onClose]);
 
   /*
   useEffect(() => {
@@ -201,9 +219,8 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       <>
         <img alt="" className={styles.closeBtn} src={close} onClick={closeModal} />
 
-        {vaultSignArguments && (
-          <div className={styles.signTitle}>{vaultSignArguments.pstb ? 'Review Transaction' : 'Sign Transaction'}</div>
-        )}
+        {signPsbtArguments && <div className={styles.signTitle}>{'Sign Transaction'}</div>}
+        {switchNetworkArguments && <div className={styles.signTitle}>{'Switch Network'}</div>}
 
         {requestArguments && (
           <div className={styles.signTitle}>
@@ -227,20 +244,28 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           </div>
         )}
 
-        <div className={styles.detailsContent + (requestArguments || vaultSignArguments ? ` ${styles.fill}` : '')}>
-          {vaultSignArguments && vaultSignArguments.details && (
+        <div
+          className={
+            styles.detailsContent +
+            (requestArguments || signPsbtArguments || switchNetworkArguments ? ` ${styles.fill}` : '')
+          }
+        >
+          {signPsbtArguments && signPsbtArguments.details && (
             <div className={styles.unsignedMessage}>
-              To: {vaultSignArguments?.details?.toAddress} <br />
-              Value: {vaultSignArguments?.details?.satoshis} <br />
-              Fee: {vaultSignArguments?.details?.fee} <br />
-              Total: {vaultSignArguments?.details?.total} <br />
+              To: {signPsbtArguments?.details?.toAddress} <br />
+              Value: {signPsbtArguments?.details?.satoshis} <br />
+              Fee: {signPsbtArguments?.details?.fee} <br />
+              Total: {signPsbtArguments?.details?.total} <br />
             </div>
+          )}
+          {switchNetworkArguments && switchNetworkArguments.network && (
+            <div className={styles.unsignedMessage}>{switchNetworkArguments?.network}</div>
           )}
           {unsignedMessage && <div className={styles.unsignedMessage}>{unsignedMessage}</div>}
         </div>
 
-        {vaultSignArguments && vaultSignArguments?.details?.fee && (
-          <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(vaultSignArguments?.details?.fee)} ${
+        {signPsbtArguments && signPsbtArguments?.pstb && (
+          <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(signPsbtArguments?.details?.fee)} ${
             chainInfo?.nativeCurrency.symbol
           }`}</div>
         )}

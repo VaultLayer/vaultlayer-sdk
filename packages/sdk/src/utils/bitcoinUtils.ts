@@ -1,14 +1,11 @@
 import coinSelect from '../lib/coinselect-segwit';
 import { networks, payments, Psbt, Transaction } from 'bitcoinjs-lib';
 import * as bitcoin from 'bitcoinjs-lib';
-import { Provider } from '../lib/coredao-staking/provider';
-
-import { getAddressType } from '../lib/coredao-staking/address';
+import { BitcoinRPC } from './bitcoinRpc';
+import axios from 'axios';
 import { ECPairFactory } from 'ecpair';
 import ecc from '@bitcoinerlab/secp256k1';
 import { toOutputScript } from 'bitcoinjs-lib/src/address';
-
-const btcApiEndpoint2 = 'https://mempool.space';
 
 export interface WitnessUtxo {
   script: Buffer;
@@ -100,7 +97,27 @@ export const getBtcAccounts = (btcPubKey: string, btcNetwork: 'testnet' | 'liven
   return accounts;
 };
 
-export const getUtxos = async (
+export function getAddressType(address: string, network = bitcoin.networks.bitcoin) {
+  if (address.startsWith(`${network.bech32}1p`)) {
+    bitcoin.address.fromBech32(address);
+    return 'p2tr';
+  }
+  if (address.startsWith(network.bech32)) {
+    bitcoin.address.fromBech32(address);
+    return 'p2wpkh';
+  }
+  const base58Data = bitcoin.address.fromBase58Check(address);
+  if (base58Data.version === Number(network.scriptHash)) {
+    return 'p2sh-p2wpkh';
+  }
+  if (base58Data.version === Number(network.pubKeyHash)) {
+    return 'p2pkh';
+  }
+
+  throw new Error('invalid address');
+}
+
+export const getAllUtxos = async (
   account: string,
   btcNetwork: 'testnet' | 'livenet',
   btcPubKey: string,
@@ -108,7 +125,7 @@ export const getUtxos = async (
 ): Promise<any[]> => {
   const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
-  const provider = new Provider({
+  const provider = new BitcoinRPC({
     network,
     bitcoinRpc,
   });
@@ -194,6 +211,30 @@ export const getUtxos = async (
   return utxos;
 };
 
+export const getAvailableUtxos = async (account: string, btcNetwork: 'testnet' | 'livenet'): Promise<any[]> => {
+  const utxosResponse = await axios.get(`http://localhost:3001/api/v1/portfolio/utxos?address=${account}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+  console.log('utxosResponse:', utxosResponse.data);
+
+  const utxos = utxosResponse?.data.utxos?.map((utxo: { txid: any; vout: any; satoshi: any; address: string }) => ({
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.satoshi,
+    witnessUtxo: {
+      script: toOutputScript(
+        utxo.address,
+        btcNetwork === 'testnet' ? bitcoin.networks.testnet : bitcoin.networks.bitcoin
+      ),
+      value: utxo.satoshi,
+    },
+  }));
+
+  return utxos;
+};
+
 // feeRate: satoshis per byte
 export const prepareTransaction = (
   utxos: UTXO[],
@@ -239,30 +280,4 @@ export const prepareTransaction = (
   });
 
   return { psbt, fee };
-};
-
-/**
- * Broadcasts a signed transaction to the Bitcoin network
- * @param {bitcoin.Transaction} transaction - Signed transaction
- * @returns {Promise<string>} Transaction ID
- * @example
- * const signedTransaction = sdk.signFirstBtcUtxo({
- *  pkpPublicKey: "0x043fd854ac22b8c80eadd4d8354ab8e74325265a065e566d82a21d578da4ef4d7af05d27e935d38ed28d5fda657e46a0dc4bab62960b4ad586b9c22d77f786789a",
- *  fee: 24,
- *  recipientAddress: "1JwSSubhmg6iPtRjtyqhUYYH7bZg3Lfy1T",
- * })
- * const txId = await sdk.broadcastBtcTransaction(signedTransaction)
- */
-export const broadcastBtcTransaction = async (txHex: string, btcTestNet: boolean): Promise<string> => {
-  try {
-    const response = await fetch(`${btcApiEndpoint2}/${btcTestNet ? 'testnet/' : null}api/tx`, {
-      method: 'POST',
-      body: txHex,
-    });
-    const data = await response.text();
-    return data;
-  } catch (err) {
-    console.log(err);
-    throw new Error('Error broadcasting transaction: ' + err);
-  }
 };

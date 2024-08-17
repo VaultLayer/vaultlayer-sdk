@@ -1,5 +1,5 @@
 // baseline estimates, used to improve performance
-var TX_EMPTY_SIZE = 4 + 1 + 1 + 4 + 2;
+var TX_EMPTY_SIZE = 4 + 1 + 1 + 4;
 var TX_INPUT_BASE = 32 + 4 + 1 + 4;
 var TX_INPUT_PUBKEYHASH = 107;
 var TX_INPUT_SEGWIT = 27;
@@ -9,6 +9,7 @@ var TX_OUTPUT_PUBKEYHASH = 25;
 var TX_OUTPUT_SCRIPTHASH = 23;
 var TX_OUTPUT_SEGWIT = 22;
 var TX_OUTPUT_SEGWIT_SCRIPTHASH = 34;
+
 
 function inputBytes(input) {
 
@@ -99,6 +100,8 @@ function sumOrNaN(range) {
 var BLANK_OUTPUT = outputBytes({});
 
 function finalize(inputs, outputs, feeRate, changeAddr) {
+  console.log('coinselect finalize feeRate: ',feeRate);
+  console.log('coinselect finalize changeAddr: ',changeAddr);
   var bytesAccum = transactionBytes(inputs, outputs);
   var feeAfterExtraOutput =
     feeRate *
@@ -106,7 +109,7 @@ function finalize(inputs, outputs, feeRate, changeAddr) {
       (changeAddr ? outputBytes({ address: changeAddr }) : BLANK_OUTPUT));
   var remainderAfterExtraOutput =
     sumOrNaN(inputs) - (sumOrNaN(outputs) + feeAfterExtraOutput);
-
+  console.log('coinselect finalize remainderAfterExtraOutput: ',remainderAfterExtraOutput);
   // is it worth a change output?
   if (remainderAfterExtraOutput > dustThreshold({}, feeRate)) {
     outputs = outputs.concat({ address: changeAddr, value: remainderAfterExtraOutput });

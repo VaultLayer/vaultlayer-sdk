@@ -14,7 +14,7 @@ const ModalView = () => {
   return (
     <>
       {isIframeOpen && (
-        <iframe className={styles['modal-view-iframe']} src="http://localhost:3000/portfolio" title="vaultlayer" />
+        <iframe className={styles['modal-view-iframe']} src="http://localhost:3001/portfolio" title="vaultlayer" />
       )}
       <div className={styles['modal-view-button']} onClick={handleOpenIframe}>
         <img src={isIframeOpen ? close : wallet} alt="wallet button" width={50} />

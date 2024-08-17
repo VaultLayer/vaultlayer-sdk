@@ -89,6 +89,7 @@ export async function authenticateWithEthWallet(
 
   const toSign = await createSiweMessageWithRecaps({
     domain: DOMAIN,
+    statement: 'Sign-in to VaultLayer.xyz - SmartVault',
     uri: ORIGIN,
     expiration: expiration,
     nonce: litNodeClient.latestBlockhash!,
@@ -109,6 +110,63 @@ export async function authenticateWithEthWallet(
     sig: signature,
     derivedVia: 'web3.eth.personal.sign',
     signedMessage: toSign,
+    address: address,
+  };
+  const authMethod = {
+    authMethodType: 1,
+    accessToken: JSON.stringify(authSig),
+  };
+
+  return authMethod;
+}
+
+/**
+ * Get auth method object by signing a message with an Ethereum wallet
+ */
+export async function authenticateWithBtcWallet(
+  litNodeClient: LitNodeClient | undefined,
+  litAuthClient: LitAuthClient | undefined,
+  address: string,
+  signMessage: (message: string) => Promise<string>
+): Promise<AuthMethod> {
+  if (!litNodeClient) {
+    throw new Error('No litNodeClient');
+  }
+  if (!litAuthClient) {
+    throw new Error('No litAuthClient');
+  }
+
+  const ethWalletProvider = litAuthClient.initProvider<EthWalletProvider>(ProviderType.EthWallet, {
+    domain: DOMAIN,
+    origin: ORIGIN,
+  });
+
+  // Get expiration or default to 24 hours
+  const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
+  const toSign = await createSiweMessageWithRecaps({
+    domain: DOMAIN,
+    statement: 'Sign-in to VaultLayer.xyz - SmartVault',
+    uri: ORIGIN,
+    expiration: expiration,
+    nonce: litNodeClient.latestBlockhash!,
+    walletAddress: address,
+    resources: [
+      {
+        resource: new LitPKPResource('*'),
+        ability: LitAbility.PKPSigning,
+      },
+    ],
+    litNodeClient,
+  });
+
+  console.log('authenticateWithEthWallet toSign', toSign);
+
+  const signature = await signMessage(toSign);
+  const authSig = {
+    sig: signature,
+    derivedVia: 'web3.eth.personal.sign',
+    signedMessage: '\u0018Bitcoin Signed Message:\n' + String(toSign.length) + toSign,
     address: address,
   };
   const authMethod = {
@@ -236,9 +294,17 @@ export async function mintPKP(litAuthClient: LitAuthClient, authMethod: AuthMeth
   } else {
     // Mint PKP through relay server
     txHash = (await provider?.mintPKPThroughRelayer(authMethod, options)) as string;
+    console.log('mintPKPThroughRelayer txHash:', txHash);
   }
 
+  await new Promise<void>((resolve, reject) => {
+    setTimeout(() => {
+      resolve();
+    }, 2000);
+  });
+
   const response = await provider?.relay.pollRequestUntilTerminalState(txHash);
+  console.log('mintPKPThroughRelayer response:', response);
   if (response?.status !== 'Succeeded') {
     throw new Error('Minting failed');
   }

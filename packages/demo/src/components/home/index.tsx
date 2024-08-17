@@ -25,6 +25,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { isAddress, isHex, type Hex } from 'viem';
 import { VerifyModal } from '../verifyModal';
+import type { BTCAddress } from '@vaultlayer/sdk/src/utils/bitcoinUtils';
 
 type TxData = {
   to: string;
@@ -201,7 +202,7 @@ export default function Home() {
     }
     try {
       const txId = await btcProvider.sendBitcoin(btcProvider.btcAccounts[0].address, address, Number(satoshis), {
-        fee: 'avg',
+        fee: 'slow',
         bitcoinRpc: 'mempool',
       });
       toast.success(txId);
@@ -453,7 +454,7 @@ export default function Home() {
 
         <div className="overflow-hidden text-ellipsis whitespace-nowrap">BTC Addresses:</div>
 
-        {btcProvider.btcAccounts.map((btcAddress: any, index: number) => {
+        {btcProvider.btcAccounts.map((btcAddress: BTCAddress, index: number) => {
           return (
             <div key={index}>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Network: {btcAddress.network}</div>

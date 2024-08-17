@@ -5,7 +5,7 @@ import { type BaseConnector } from '../connector/base';
 import useModalStateValue from '../hooks/useModalStateValue';
 import { EventName } from '../types/eventName';
 import events from '../utils/eventUtils';
-import { convertSignature, pubKeyToEthAddress } from '../utils/ethereumUtils';
+import { convertSignature, pubKeyToEthAddress, verifySignature, sigToEthAddress } from '../utils/ethereumUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
 import type { SignerAsync } from 'bitcoinjs-lib';
@@ -16,7 +16,14 @@ import { AuthCallbackParams } from '@lit-protocol/types';
 import { AuthMethodType } from '@lit-protocol/constants';
 import { LitAbility, LitPKPResource, LitActionResource } from '@lit-protocol/auth-helpers';
 import { PKPEthersWallet } from '@lit-protocol/pkp-ethers';
-import { authenticateWithGoogle, authenticateWithEthWallet, getPKPs, mintPKP, signWithLitAction } from '../utils/lit';
+import {
+  authenticateWithGoogle,
+  authenticateWithEthWallet,
+  authenticateWithBtcWallet,
+  getPKPs,
+  mintPKP,
+  signWithLitAction,
+} from '../utils/lit';
 import type { BTCAddress } from '../utils/bitcoinUtils';
 import { getBtcPubkey, getBtcAccounts } from '../utils/bitcoinUtils';
 
@@ -194,7 +201,7 @@ export const ConnectProvider = ({
 
       const signature = await connector.signMessage(message);
       if (connector.metadata.type === 'uxto') {
-        const ethSignature = convertSignature(signature);
+        const ethSignature = convertSignature(signature, message);
         return ethSignature;
       }
       return signature;
@@ -238,9 +245,12 @@ export const ConnectProvider = ({
         console.log('authWithEthWallet start');
         console.log('connector type:', connector?.metadata.type);
         if (connector?.metadata.type === 'uxto') {
-          const pubKey = await getPublicKey();
-          const address = pubKeyToEthAddress(pubKey);
-          const result: AuthMethod = await authenticateWithEthWallet(
+          //const pubKey = await getPublicKey();
+          //const address = pubKeyToEthAddress(pubKey);
+          const loginMsg = 'Sign-In to VaultLayer from Bitcoin Wallet';
+          const loginSig = await connector.signMessage(loginMsg);
+          const address = sigToEthAddress(loginMsg, loginSig);
+          const result: AuthMethod = await authenticateWithBtcWallet(
             litNodeClient,
             litAuthClient,
             address,
