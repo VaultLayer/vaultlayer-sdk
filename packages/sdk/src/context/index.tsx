@@ -86,7 +86,10 @@ export const ConnectProvider = ({
   autoConnect = true,
 }: {
   children: React.ReactNode;
-  options: any;
+  options: {
+    apiKey: string;
+    showVaultButton: boolean;
+  };
   connectors: BaseConnector[];
   autoConnect?: boolean;
 }) => {
@@ -397,7 +400,7 @@ export const ConnectProvider = ({
 
   // <ModalView />
   useEffect(() => {
-    if (smartVault && options.vaultOptions?.visible !== false) {
+    if (smartVault && options.showVaultButton) {
       setShowVault(true);
     }
   }, [smartVault]);

@@ -4,6 +4,12 @@ import * as bitcoin from 'bitcoinjs-lib';
 
 export type FeeSpeedType = 'slow' | 'avg' | 'fast';
 
+export interface Fees {
+  slow: number;
+  avg: number;
+  fast: number;
+}
+
 export interface UTXO {
   txid: string;
   vout: number;
@@ -59,6 +65,27 @@ export class BitcoinRPC {
       } else {
         return data.halfHourFee;
       }
+    } catch (error) {
+      throw new Error(`Failed to get fee rate: ${error}`);
+    }
+  }
+
+  async getFeeRates(): Promise<Fees> {
+    try {
+      const response: AxiosResponse<any> = await axios.get(`${this.feeApiUrl}/v1/fees/recommended`);
+      const data: {
+        fastestFee: number;
+        halfHourFee: number;
+        hourFee: number;
+        economyFee: number;
+        minimumFee: number;
+      } = response.data;
+      console.log('networkFees: ', data);
+      return {
+        slow: data.economyFee,
+        avg: data.halfHourFee,
+        fast: data.fastestFee,
+      };
     } catch (error) {
       throw new Error(`Failed to get fee rate: ${error}`);
     }

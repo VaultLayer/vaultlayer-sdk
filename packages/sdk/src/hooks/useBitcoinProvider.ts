@@ -39,7 +39,7 @@ export const useBitcoinProvider = () => {
       const utxos = await getUtxos(fromAddress);
       console.log('sendBitcoin utxosResponse:', utxos);
 
-      const feeRate = await getNetworkFees(options.fee);
+      const feeRate = await getNetworkFee(options.fee);
 
       // 2) prepare transaction
       const { psbt, fee } = prepareTransaction(utxos, toAddress, satoshis, fromAddress, feeRate ? feeRate : 0);
@@ -162,7 +162,7 @@ export const useBitcoinProvider = () => {
    * Retrieves the network fees.
    * @returns A promise that resolves to the network fees.
    */
-  const getNetworkFees = useCallback(
+  const getNetworkFee = useCallback(
     async (fee: string) => {
       const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
@@ -176,6 +176,21 @@ export const useBitcoinProvider = () => {
     },
     [btcNetwork]
   );
+
+  /**
+   * Retrieves the network fees.
+   * @returns A promise that resolves to the network fees.
+   */
+  const getNetworkFees = useCallback(async () => {
+    const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+
+    const provider = new BitcoinRPC({
+      network,
+      bitcoinRpc: 'mempool',
+    });
+    const res = await provider.getFeeRates();
+    return res;
+  }, [btcNetwork]);
 
   /**
    * Retrieves the unspent transaction outputs (UTXOs) for a given address and amount.
@@ -279,6 +294,7 @@ export const useBitcoinProvider = () => {
     pushTx,
     sendBitcoin,
     getUtxos,
+    getNetworkFee,
     getNetworkFees,
   };
 };

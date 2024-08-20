@@ -71,7 +71,7 @@
     "sass": "^1.69.7"
   },
   "peerDependencies": {
-    "react": "^18",
+    "react": ">=17.0.0",
     "bitcoinjs-lib": "^6.1.6",
     "bitcore-lib": "^10.0.23",
     "ecpair": "^2.1.0",
