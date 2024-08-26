@@ -1,6 +1,6 @@
 {
   "name": "@vaultlayer/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -39,7 +39,8 @@
     "prebuild": "yarn typegen",
     "typecheck": "yarn tsc --noEmit",
     "typegen": "tsc --emitDeclarationOnly || true",
-    "typegen:watch": "tsc --emitDeclarationOnly --watch"
+    "typegen:watch": "tsc --emitDeclarationOnly --watch",
+    "publish" : "npm publish --access public"
   },
   "dependencies": {
     "@ethereumjs/util": "^9.0.1",
