@@ -264,7 +264,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           {unsignedMessage && <div className={styles.unsignedMessage}>{unsignedMessage}</div>}
         </div>
 
-        {signPsbtArguments && signPsbtArguments?.pstb && (
+        {signPsbtArguments && signPsbtArguments?.details && (
           <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(signPsbtArguments?.details?.fee)} ${
             chainInfo?.nativeCurrency.symbol
           }`}</div>

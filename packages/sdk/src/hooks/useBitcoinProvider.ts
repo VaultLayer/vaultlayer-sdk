@@ -61,10 +61,6 @@ export const useBitcoinProvider = () => {
           fee,
           network: btcNetwork,
           total: satoshis + fee,
-          moreInfo: {
-            title: 'Inputs & Outputs',
-            content: `Inputs: ${psbt.txInputs.length}, Outputs: ${psbt.txOutputs.length},`,
-          },
         },
       };
       return new Promise<string>((resolve, reject) => {
@@ -104,7 +100,10 @@ export const useBitcoinProvider = () => {
    * @returns A promise that resolves to the hex string of the signed PSBT.
    */
   const signPsbt = useCallback(
-    async (psbt: bitcoin.Psbt, options?: { autoFinalized: boolean; forceHideConfirmModal?: boolean }) => {
+    async (
+      psbt: bitcoin.Psbt,
+      options?: { autoFinalized: boolean; forceHideConfirmModal?: boolean; details?: any }
+    ) => {
       if (!vaultBtcSigner) {
         throw new Error('The vault signer is not initialized.');
       }
@@ -133,6 +132,7 @@ export const useBitcoinProvider = () => {
 
       const psbtSignArguments = {
         pstb: psbt,
+        details: options?.details,
       };
       return new Promise<string>((resolve, reject) => {
         //emit events for SingModal confirm
