@@ -93,22 +93,6 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     };
   }, [onOpen]);
 
-  /*
-  useEffect(() => {
-    if (open && publicClient && ethAccount && userOpBundle) {
-      publicClient
-        .getBalance({ address: ethAccount as Hex })
-        .then((result) => setNativeBalance(result))
-        .catch((error) => {
-          console.log('🚀 ~ getBalance ~ error:', error);
-          events.emit(EventName.sendUserOpResult, {
-            error,
-          });
-          onClose();
-        });
-    }
-  }, [open, publicClient, ethAccount, userOpBundle, onClose]);
-*/
   const toggleNotRemind = () => {
     setNotRemindChecked(!notRemindChecked);
     txConfirm.setNotRemind(!notRemindChecked);
@@ -184,21 +168,6 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     onClose();
   }, [vaultEthWallet, requestArguments, signPsbtArguments, switchNetworkArguments, onClose]);
 
-  /*
-  useEffect(() => {
-    if (userOpBundle && nativeBalance != null && deserializeResult) {
-      const nativeChange = 0;
-      if (userOpBundle.userOp.paymasterAndData.length > 2) {
-        // 计算余额，需大于等于nativeChange
-        setDisabled(nativeBalance < nativeChange);
-      } else {
-        // 计算余额，需大于等于gasFee+nativeChange
-        setDisabled(nativeBalance < gasFee + nativeChange);
-      }
-    }
-  }, [userOpBundle, gasFee, nativeBalance, deserializeResult]);
-  */
-
   const unsignedMessage = useMemo(() => {
     if (!requestArguments) {
       return undefined;
@@ -232,17 +201,6 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           <img alt="" src={chainInfo?.icon} />
           {chainInfo?.fullname.replace('Mainnet', '')}
         </div>
-
-        {smartVault && smartVault.ethAddress && (
-          <div className={styles.addressContainer}>
-            <CopyText value={smartVault.ethAddress} style={{ textDecorationLine: 'none' }}>
-              <div className={styles.addressInfo}>
-                {shortString(smartVault.ethAddress)}
-                <img alt="" src={copy} />
-              </div>
-            </CopyText>
-          </div>
-        )}
 
         <div
           className={

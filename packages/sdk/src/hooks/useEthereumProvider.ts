@@ -8,10 +8,8 @@ import events, { getPendingSignEventAccount } from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
 export const useEthereumProvider = () => {
-  const { smartVault, authMethod, vaultEthWallet } = useConnectProvider();
+  const { smartVault, authMethod, vaultEthWallet, vaultEthClient, vaultWalletConnect } = useConnectProvider();
   const [chainId, setChainId] = useState<number>();
-
-  const [vaultEthClient, setVaultEthClient] = useState<WalletClient | null>(null);
 
   useEffect(() => {
     if (vaultEthWallet) {
@@ -40,21 +38,17 @@ export const useEthereumProvider = () => {
     [vaultEthWallet?.provider]
   );
 
-  useEffect(() => {
-    const vaultEthWallets = async () => {
-      if (vaultEthWallet && vaultEthWallet?.provider) {
-        const walletClient = createWalletClient({
-          transport: custom(new WalletClientProvider(vaultEthWallet?.provider as any)),
-        });
-        console.log('walletClient:', walletClient);
-        setVaultEthClient(walletClient);
-      }
-    };
 
-    if (vaultEthWallet?.provider && !vaultEthClient) {
-      vaultEthWallets().catch(console.error);
-    }
-  }, [vaultEthWallet]);
+
+  const pairToWalletConnect = useCallback(
+    async (uri: string) => {
+      if (vaultWalletConnect) {
+        // Pair using the given URI
+        return await vaultWalletConnect.pair({ uri: uri });
+      }
+    },
+    [vaultWalletConnect]
+  );
 
   return {
     smartVault,
@@ -63,5 +57,6 @@ export const useEthereumProvider = () => {
     vaultEthClient,
     switchEthChain,
     chainId,
+    pairToWalletConnect,
   };
 };

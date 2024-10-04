@@ -8,14 +8,21 @@ import type {
 } from '@lit-protocol/lit-auth-client';
 import type { LitNodeClient } from '@lit-protocol/lit-node-client';
 import { AuthMethodScope, AuthMethodType, ProviderType } from '@lit-protocol/constants';
-import type { AuthMethod, GetSessionSigsProps, IRelayPKP, SessionSigs } from '@lit-protocol/types';
+import type { GetSessionSigsProps, IRelayPKP, SessionSigs } from '@lit-protocol/types';
 import { AuthCallbackParams, AuthSig } from '@lit-protocol/types';
 import { LitAbility, LitPKPResource, LitActionResource } from '@lit-protocol/auth-helpers';
 import { createSiweMessageWithRecaps, generateAuthSig } from '@lit-protocol/auth-helpers';
+import { ethers, utils } from 'ethers';
+import type { AxiosResponse } from 'axios';
+import axios from 'axios';
 
-export const DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || 'localhost';
-export const ORIGIN =
-  process.env.NEXT_PUBLIC_VERCEL_ENV === 'production' ? `https://${DOMAIN}` : 'http://localhost:3000';
+export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_TEST_v3'));
+export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmYEEbGdJBqhrY4nKs3ZavCRqSzpW7Bsbg1trUL7SG6Lsz';
+
+export interface AuthMethod {
+  authMethodType: number | string;
+  accessToken: string;
+}
 
 /**
  * Validate provider
@@ -70,6 +77,7 @@ export async function authenticateWithDiscord(
 export async function authenticateWithEthWallet(
   litNodeClient: LitNodeClient | undefined,
   litAuthClient: LitAuthClient | undefined,
+  domain: string,
   address: string,
   signMessage: (message: string) => Promise<string>
 ): Promise<AuthMethod> {
@@ -80,17 +88,17 @@ export async function authenticateWithEthWallet(
     throw new Error('No litAuthClient');
   }
   const ethWalletProvider = litAuthClient.initProvider<EthWalletProvider>(ProviderType.EthWallet, {
-    domain: DOMAIN,
-    origin: ORIGIN,
+    domain: domain,
+    origin: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
   });
 
   // Get expiration or default to 24 hours
   const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
   const toSign = await createSiweMessageWithRecaps({
-    domain: DOMAIN,
+    domain: domain,
     statement: 'Sign-in to VaultLayer.xyz - SmartVault',
-    uri: ORIGIN,
+    uri: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
     expiration: expiration,
     nonce: litNodeClient.latestBlockhash!,
     walletAddress: address,
@@ -113,7 +121,7 @@ export async function authenticateWithEthWallet(
     address: address,
   };
   const authMethod = {
-    authMethodType: 1,
+    authMethodType: AuthMethodType.EthWallet,
     accessToken: JSON.stringify(authSig),
   };
 
@@ -126,6 +134,7 @@ export async function authenticateWithEthWallet(
 export async function authenticateWithBtcWallet(
   litNodeClient: LitNodeClient | undefined,
   litAuthClient: LitAuthClient | undefined,
+  domain: string,
   address: string,
   signMessage: (message: string) => Promise<string>
 ): Promise<AuthMethod> {
@@ -136,41 +145,28 @@ export async function authenticateWithBtcWallet(
     throw new Error('No litAuthClient');
   }
 
-  const ethWalletProvider = litAuthClient.initProvider<EthWalletProvider>(ProviderType.EthWallet, {
-    domain: DOMAIN,
-    origin: ORIGIN,
-  });
-
   // Get expiration or default to 24 hours
   const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
-  const toSign = await createSiweMessageWithRecaps({
-    domain: DOMAIN,
+  const siweMsg = {
+    domain: domain,
     statement: 'Sign-in to VaultLayer.xyz - SmartVault',
-    uri: ORIGIN,
+    uri: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
     expiration: expiration,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     nonce: litNodeClient.latestBlockhash!,
-    walletAddress: address,
-    resources: [
-      {
-        resource: new LitPKPResource('*'),
-        ability: LitAbility.PKPSigning,
-      },
-    ],
-    litNodeClient,
-  });
-
-  console.log('authenticateWithEthWallet toSign', toSign);
+  };
+  const toSign = `${domain} wants you to sign in with your Bitcoin account:\n${address}\n\n${siweMsg.statement}\n\nURI: ${siweMsg.uri}\nNonce: ${siweMsg.nonce}\nExpiration Time: ${siweMsg.expiration}`;
 
   const signature = await signMessage(toSign);
   const authSig = {
     sig: signature,
-    derivedVia: 'web3.eth.personal.sign',
-    signedMessage: '\u0018Bitcoin Signed Message:\n' + String(toSign.length) + toSign,
+    derivedVia: 'bitcoin.signMessage',
+    signedMessage: toSign,
     address: address,
   };
   const authMethod = {
-    authMethodType: 1,
+    authMethodType: BITCOIN_AUTH_METHOD_TYPE,
     accessToken: JSON.stringify(authSig),
   };
 
@@ -237,46 +233,30 @@ export async function authenticateWithStytch(
 }
 
 /**
- * Generate session sigs for given params
- */
-export async function getSessionSigs({
-  litAuthClient,
-  pkpPublicKey,
-  authMethod,
-  sessionSigsParams,
-}: {
-  litAuthClient: LitAuthClient;
-  pkpPublicKey: string;
-  authMethod: AuthMethod;
-  sessionSigsParams: GetSessionSigsProps;
-}): Promise<SessionSigs> {
-  const provider = getProviderByAuthMethod(litAuthClient, authMethod);
-  if (provider) {
-    const sessionSigs = await provider.getSessionSigs({
-      pkpPublicKey,
-      authMethod,
-      sessionSigsParams,
-    });
-    return sessionSigs;
-  } else {
-    throw new Error(`Provider not found for auth method type ${authMethod.authMethodType}`);
-  }
-}
-
-/**
  * Fetch PKPs associated with given auth method
  */
-export async function getPKPs(litAuthClient: LitAuthClient, authMethod: AuthMethod): Promise<IRelayPKP[]> {
-  const provider = getProviderByAuthMethod(litAuthClient, authMethod);
-  const allPKPs = await provider?.fetchPKPsThroughRelayer(authMethod);
-  if (allPKPs) return allPKPs;
-  else return [];
+export async function getPKPs(apiUrl: string, authMethod: AuthMethod): Promise<IRelayPKP[]> {
+  try {
+    const allPKPs = await fetch(`${apiUrl}/api/v1/vault/list`, {
+      method: 'post',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(authMethod),
+    }).then((result) => result.json());
+    if (allPKPs) return allPKPs;
+    else return [];
+  } catch (error: any) {
+    throw new Error(`Failed to broadcast transaction: ${error.response.data ?? error}`);
+  }
 }
 
 /**
  * Mint a new PKP for current auth method
  */
-export async function mintPKP(litAuthClient: LitAuthClient, authMethod: AuthMethod): Promise<IRelayPKP> {
+export async function mintPKP(
+  litAuthClient: LitAuthClient,
+  authMethod: AuthMethod,
+  apiUrl: string
+): Promise<IRelayPKP> {
   const provider = getProviderByAuthMethod(litAuthClient, authMethod);
   // Set scope of signing any data
   const options = {
@@ -291,29 +271,35 @@ export async function mintPKP(litAuthClient: LitAuthClient, authMethod: AuthMeth
 
     // Verify registration and mint PKP through relay server
     txHash = await (provider as WebAuthnProvider).verifyAndMintPKPThroughRelayer(webAuthnInfo, options);
+
+    await new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        resolve();
+      }, 2000);
+    });
+    const response = await provider?.relay.pollRequestUntilTerminalState(txHash);
+    console.log('mintPKPThroughRelayer response:', response);
+    if (response?.status !== 'Succeeded') {
+      throw new Error('Minting failed');
+    }
+    const newPKP: IRelayPKP = {
+      tokenId: response.pkpTokenId as string,
+      publicKey: response.pkpPublicKey as string,
+      ethAddress: response.pkpEthAddress as string,
+    };
+    return newPKP;
   } else {
-    // Mint PKP through relay server
-    txHash = (await provider?.mintPKPThroughRelayer(authMethod, options)) as string;
-    console.log('mintPKPThroughRelayer txHash:', txHash);
+    try {
+      const newPKP: IRelayPKP = await fetch(`${apiUrl}/api/v1/vault/create`, {
+        method: 'post',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(authMethod),
+      }).then((result) => result.json());
+      return newPKP;
+    } catch (error: any) {
+      throw new Error(`Failed to broadcast transaction: ${error.response.data ?? error}`);
+    }
   }
-
-  await new Promise<void>((resolve, reject) => {
-    setTimeout(() => {
-      resolve();
-    }, 2000);
-  });
-
-  const response = await provider?.relay.pollRequestUntilTerminalState(txHash);
-  console.log('mintPKPThroughRelayer response:', response);
-  if (response?.status !== 'Succeeded') {
-    throw new Error('Minting failed');
-  }
-  const newPKP: IRelayPKP = {
-    tokenId: response.pkpTokenId as string,
-    publicKey: response.pkpPublicKey as string,
-    ethAddress: response.pkpEthAddress as string,
-  };
-  return newPKP;
 }
 
 /**
@@ -344,7 +330,7 @@ function getProviderByAuthMethod(litAuthClient: LitAuthClient, authMethod: AuthM
 export async function signWithLitAction(
   litNodeClient: LitNodeClient | undefined,
   litAuthClient: LitAuthClient | undefined,
-  authMethod: AuthMethod | undefined,
+  authMethod: any,
   hashForSig: Buffer,
   pkpPublicKey: string
 ): Promise<string> {

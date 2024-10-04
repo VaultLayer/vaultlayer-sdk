@@ -1,7 +1,4 @@
 export enum EventName {
-  sendUserOp = 'sendUserOp',
-  sendUserOpResult = 'sendUserOpResult',
-
   psbtSign = 'psbtSign',
   psbtSignResult = 'psbtSignResult',
 

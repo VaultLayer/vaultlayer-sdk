@@ -1,6 +1,6 @@
 {
   "name": "demo",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "env-cmd -f .env.development.local --fallback next dev -p 3000",
@@ -20,7 +20,12 @@
     "react-toastify": "^9.1.3",
     "vconsole": "^3.15.1",
     "viem": "^2.0.3",
-    "zustand": "^4.4.7"
+    "zustand": "^4.4.7",
+    "@walletconnect/core": "2.9.2",
+    "@walletconnect/jsonrpc-utils": "1.0.8",
+    "@walletconnect/types": "2.9.2",
+    "@walletconnect/utils": "2.9.2",
+    "@walletconnect/web3wallet": "1.8.8"
   },
   "devDependencies": {
     "@types/node": "^20",

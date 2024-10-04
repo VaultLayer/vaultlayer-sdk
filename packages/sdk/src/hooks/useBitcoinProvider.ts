@@ -49,7 +49,9 @@ export const useBitcoinProvider = () => {
       }
 
       if (!showConfirmModal) {
-        const txHex = await signPsbt(psbt, { autoFinalized: true });
+        const signedPstb = await signPsbt(psbt);
+        signedPstb.finalizeAllInputs();
+        const txHex = signedPstb.extractTransaction().toHex();
         return await pushTx(txHex);
       }
 
@@ -97,13 +99,10 @@ export const useBitcoinProvider = () => {
   /**
    * Signs the given PSBT in hex format.
    * @param psbtHex - The hex string of the unsigned PSBT to sign.
-   * @returns A promise that resolves to the hex string of the signed PSBT.
+   * @returns A promise that resolves to the signed PSBT.
    */
   const signPsbt = useCallback(
-    async (
-      psbt: bitcoin.Psbt,
-      options?: { autoFinalized: boolean; forceHideConfirmModal?: boolean; details?: any }
-    ) => {
+    async (psbt: bitcoin.Psbt, options?: { forceHideConfirmModal?: boolean; details?: any }) => {
       if (!vaultBtcSigner) {
         throw new Error('The vault signer is not initialized.');
       }
@@ -120,35 +119,29 @@ export const useBitcoinProvider = () => {
         // signTransaction with Vault
         console.log('signPsbt vaultBtcSigner:', vaultBtcSigner);
         await psbt.signAllInputsAsync(vaultBtcSigner);
-        psbt.validateSignaturesOfAllInputs(validator);
-        console.log('signPsbt signed pstb:', psbt);
-
-        if (options?.autoFinalized) {
-          psbt.finalizeAllInputs();
+        if (!psbt.validateSignaturesOfAllInputs(validator)) {
+          throw new Error('signature is invalid');
         }
-        console.log('signPsbt Tx:', psbt.extractTransaction().toHex());
-        return psbt.extractTransaction().toHex();
+        console.log('signPsbt signed pstb:', psbt);
+        return psbt;
       }
 
       const psbtSignArguments = {
         pstb: psbt,
         details: options?.details,
       };
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<bitcoin.Psbt>((resolve, reject) => {
         //emit events for SingModal confirm
         events.emit(EventName.psbtSign, psbtSignArguments);
         events.once(EventName.psbtSignResult, async ({ result, error }) => {
           if (result) {
             console.log('Event vaultSignResult received:', result);
             await result.signAllInputsAsync(vaultBtcSigner);
-            result.validateSignaturesOfAllInputs(validator);
-            console.log('signPsbt signed pstb:', result);
-
-            if (options?.autoFinalized) {
-              result.finalizeAllInputs();
+            if (!result.validateSignaturesOfAllInputs(validator)) {
+              throw new Error('signature is invalid');
             }
-            console.log('signPsbt Tx:', result.extractTransaction().toHex());
-            resolve(result.extractTransaction().toHex());
+            console.log('signPsbt signed pstb:', result);
+            resolve(result);
           } else {
             reject(error);
           }

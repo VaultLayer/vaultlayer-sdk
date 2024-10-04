@@ -85,9 +85,6 @@ export class WalletClientProvider implements IEthereumProvider {
       });
     } else if (method === 'eth_sendTransaction') {
       //TODO
-      //const txData = arg.params?.[0];
-      //const result = await wallet.sendTransaction(tx)
-      //return result;
       console.log('WalletClientProvider eth_sendTransaction');
     }
 

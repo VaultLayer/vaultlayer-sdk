@@ -8,7 +8,6 @@ import removeIcon from '@/assets/remove.svg';
 import typedData from '@/config/typedData';
 import { Button, Checkbox, Divider, Input, Select, SelectItem, useDisclosure } from '@nextui-org/react';
 import {
-  useAccounts,
   useConnectModal,
   useConnector,
   useVaultProvider,
@@ -45,22 +44,16 @@ export default function Home() {
   const { smartVault } = useVaultProvider();
   const ethProvider = useEthereumProvider();
   const btcProvider = useBitcoinProvider();
-  const [gasless, setGasless] = useState<boolean>(false);
-  const [forceHideModal, setForceHideModal] = useState<boolean>(false);
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
   const [inscriptionId, setInscriptionId] = useState<string>();
   const [message, setMessage] = useState<string>('Hello, VaultLayer!');
+  const [walletConnectUri, setWalletConnectUri] = useState<string>(
+    'Get wc: url from https://react-app.walletconnect.com/'
+  );
   const [address, setAddress] = useState<string>();
   const [satoshis, setSatoshis] = useState<string>('1');
   const { connectors, connect } = useConnector();
   const [directConnectors, setDirectConnectors] = useState<BaseConnector[]>();
-  const [txDatas, setTxDatas] = useState<TxData[]>([
-    {
-      to: '',
-      value: '0x0',
-      data: '0x',
-    },
-  ]);
 
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [signData, setSignData] = useState<{
@@ -212,46 +205,17 @@ export default function Home() {
     }
   };
 
-  const { run: onSendUserOp, loading: sendUserOpLoading } = useRequest(
-    async () => {
-      if (txDatas.some((tx) => !isAddress(tx.to) || !isHex(tx.data) || !isHex(tx.value))) {
-        throw new Error('Params Error, To is EVM address, Data and Value are hex string.');
-      }
-      const feeQuotes = { verifyingPaymasterGasless: '', verifyingPaymasterNative: '' }; // await getFeeQuotes(txDatas);
-      const hash = ''; // await sendUserOp({ userOp, userOpHash }, forceHideModal);
-      return hash;
-    },
-    {
-      manual: true,
-      onSuccess: (hash) => {
-        toast.success('Send Success!', {
-          onClick: () => {
-            const chain = chains.getEVMChainInfoById(ethProvider.chainId ?? 0);
-            if (chain) {
-              window.open(`${chain.blockExplorerUrl}/tx/${hash}`, '_blank');
-            }
-          },
-        });
-      },
-      onError: (error: any) => {
-        console.log('🚀 ~ onSendUserOp ~ error:', error);
-        toast.error(error.data?.extraMessage?.message || error.details || error.message || 'send user operation error');
-      },
-    }
-  );
-
   const { run: onPersonalSign, loading: personalSignLoading } = useRequest(
     async () => {
-      /*const result = await walletClient.signMessage({
-        account: smartVault.ethAddress as Hex,
+      const result = await ethProvider?.vaultEthClient?.signMessage({
+        account: smartVault?.ethAddress as Hex,
         message: personalSignMessage,
-      });*/
-      const result = '';
+      });
       return result;
     },
     {
       manual: true,
-      onSuccess: (signature) => {
+      onSuccess: (signature: any) => {
         setSignData({
           signature,
           data: personalSignMessage,
@@ -267,16 +231,15 @@ export default function Home() {
 
   const { run: onSignTypedData, loading: signTypedDataLoading } = useRequest(
     async () => {
-      /*const result = await walletClient.signTypedData({
-        account: smartVault.ethAddress as Hex,
+      const result = await ethProvider?.vaultEthClient?.signTypedData({
+        account: smartVault?.ethAddress as Hex,
         ...typedData,
-      } as any);*/
-      const result = '';
+      } as any);
       return result;
     },
     {
       manual: true,
-      onSuccess: (signature) => {
+      onSuccess: (signature: any) => {
         setSignData({
           signature,
           data: typedData,
@@ -290,6 +253,16 @@ export default function Home() {
     }
   );
 
+  const onWalletConnectUri = async () => {
+    try {
+      const result = await ethProvider.pairToWalletConnect(walletConnectUri);
+      toast.success(result);
+    } catch (error: any) {
+      console.log('🚀 ~ onWalletConnectUri ~ error:', error);
+      toast.error(error.message || 'onWalletConnectUri error');
+    }
+  };
+
   useEffect(() => {
     setDirectConnectors(connectors.filter((item) => item.isReady()));
   }, [connectors]);
@@ -297,40 +270,6 @@ export default function Home() {
   useEffect(() => {
     setDirectConnectors(connectors.filter((item) => item.isReady()));
   }, [connectors]);
-
-  const addTxData = () => {
-    if (txDatas.length < 5) {
-      setTxDatas([
-        ...txDatas,
-        {
-          to: '',
-          value: '0x0',
-          data: '0x',
-        },
-      ]);
-    }
-  };
-
-  const removeTxData = () => {
-    if (txDatas.length > 1) {
-      setTxDatas(txDatas.slice(0, txDatas.length - 1));
-    }
-  };
-
-  const onToChanged = (to: string, index: number) => {
-    txDatas[index].to = to;
-    setTxDatas([...txDatas]);
-  };
-
-  const onValueChanged = (value: string, index: number) => {
-    txDatas[index].value = value;
-    setTxDatas([...txDatas]);
-  };
-
-  const onDataChanged = (data: string, index: number) => {
-    txDatas[index].data = data;
-    setTxDatas([...txDatas]);
-  };
 
   return (
     <div className=" container mx-auto flex h-full flex-col items-center gap-6 overflow-auto py-10">
@@ -458,7 +397,12 @@ export default function Home() {
           return (
             <div key={index}>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Network: {btcAddress.network}</div>
-              <div className="overflow-hidden text-ellipsis whitespace-nowrap">Address: {btcAddress.address}</div>
+              <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+                Address:{' '}
+                <a href={`https://mempool.space/${btcAddress.network}/address/${btcAddress.address}`} target="_blank">
+                  {btcAddress.address}
+                </a>
+              </div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">PubKey: {btcAddress.publicKey}</div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Type: {btcAddress.type}</div>
               <div className="overflow-hidden text-ellipsis whitespace-nowrap">Purpose: {btcAddress.purpose}</div>
@@ -476,28 +420,11 @@ export default function Home() {
         </Button>
 
         <Divider />
-
-        <Divider />
         <Input label="Address" value={address} onValueChange={setAddress}></Input>
         <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
         <Button color="primary" onClick={onSendVaultBitcoin}>
           Send Bitcoin
         </Button>
-
-        {accounts.length !== 0 && (
-          <div className="flex flex-col gap-4">
-            <Divider></Divider>
-            <Input
-              label="Receiver Address"
-              value={inscriptionReceiverAddress}
-              onValueChange={setInscriptionReceiverAddress}
-            ></Input>
-            <Input label="Inscription ID" value={inscriptionId} onValueChange={setInscriptionId}></Input>
-            <Button color="primary" onClick={onSendInscription}>
-              Send Inscription
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="dark:bg-slate-800 relative mb-20 mt-20 flex h-auto w-[40rem] max-w-full flex-col gap-4 rounded-lg p-4 shadow-md">
@@ -507,23 +434,6 @@ export default function Home() {
         )}
 
         <div className="overflow-hidden text-ellipsis whitespace-nowrap">Address: {smartVault?.ethAddress}</div>
-        <div className="overflow-hidden text-ellipsis whitespace-nowrap">ChainId: {ethProvider.chainId}</div>
-        <Select
-          label="Switch Chain"
-          size="sm"
-          selectedKeys={ethProvider.chainId ? [ethProvider.chainId?.toString()] : []}
-          onChange={onSwitchChain}
-          isRequired
-        >
-          {[200901, 200810, 3636, 2442, 1123, 223, 5000, 5003, 2648, 111, 60808, 137, 89682]?.map?.((chainId) => {
-            const chain = chains.getEVMChainInfoById(chainId)!;
-            return (
-              <SelectItem key={chain.id} value={chain.id}>
-                {chain.fullname}
-              </SelectItem>
-            );
-          })}
-        </Select>
 
         <Button
           color="primary"
@@ -547,52 +457,9 @@ export default function Home() {
 
         <Divider className="my-4"></Divider>
 
-        <div className="flex justify-between font-medium">
-          Send User Operation
-          <div className="flex gap-4">
-            <Image
-              src={removeIcon}
-              alt=""
-              className="cursor-pointer data-[tx-amount='1']:hidden"
-              data-tx-amount={txDatas.length}
-              onClick={removeTxData}
-            ></Image>
-            <Image
-              src={addIcon}
-              alt=""
-              className="cursor-pointer data-[tx-amount='5']:hidden"
-              data-tx-amount={txDatas.length}
-              onClick={addTxData}
-            ></Image>
-          </div>
-        </div>
-
-        {txDatas.map((tx, index) => (
-          <div className="mt-2 flex w-full flex-col gap-2" key={index}>
-            <Input label="To" value={tx.to} onValueChange={(value) => onToChanged(value, index)}></Input>
-            <Input label="Value" value={tx.value} onValueChange={(value) => onValueChanged(value, index)}></Input>
-            <Input label="Data" value={tx.data} onValueChange={(value) => onDataChanged(value, index)}></Input>
-            <Divider></Divider>
-          </div>
-        ))}
-
-        <div className="flex w-full justify-end gap-4">
-          {/* <Checkbox isSelected={forceHideModal} onValueChange={setForceHideModal}>
-            Force Hide Confirm Modal
-          </Checkbox> */}
-
-          <Checkbox isSelected={gasless} onValueChange={setGasless}>
-            Gasless
-          </Checkbox>
-        </div>
-        <Button
-          color="primary"
-          onClick={onSendUserOp}
-          isLoading={sendUserOpLoading}
-          className="px-10"
-          isDisabled={smartVault == null}
-        >
-          Send
+        <Input label="WalletConnect Session" value={walletConnectUri} onValueChange={setWalletConnectUri}></Input>
+        <Button color="primary" onClick={onWalletConnectUri}>
+          Connect to URI
         </Button>
       </div>
       <VerifyModal isOpen={isOpen} onOpenChange={onOpenChange} signData={signData}></VerifyModal>
