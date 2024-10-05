@@ -38,7 +38,9 @@ export const useEthereumProvider = () => {
     [vaultEthWallet?.provider]
   );
 
-
+  const getAccounts = useCallback(async () => {
+    return [smartVault?.ethAddress];
+  }, [smartVault]);
 
   const pairToWalletConnect = useCallback(
     async (uri: string) => {
@@ -53,6 +55,7 @@ export const useEthereumProvider = () => {
   return {
     smartVault,
     authMethod,
+    getAccounts,
     vaultEthWallet,
     vaultEthClient,
     switchEthChain,

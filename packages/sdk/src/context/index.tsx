@@ -124,8 +124,8 @@ export const ConnectProvider = ({
   const [btcNetwork, setBtcNetwork] = useState<'testnet' | 'livenet'>('testnet');
   const [btcAccounts, setBtcAccounts] = useState<BTCAddress[]>([]);
   const [vaultEthWallet, setVaultEthWallet] = useState<VaultEthWallet | undefined>(undefined);
-  const [vaultEthClient, setVaultEthClient] = useState<WalletClient | null>(null);
-  const [vaultWalletConnect, setVaultWalletConnect] = useState<any | null>(null);
+  const [vaultEthClient, setVaultEthClient] = useState<WalletClient | undefined>(undefined);
+  const [vaultWalletConnect, setVaultWalletConnect] = useState<any | undefined>(undefined);
   const [showVault, setShowVault] = useState<boolean>(false);
 
   /**
