@@ -1,9 +1,9 @@
 {
   "name": "vaultlayer-sdk",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "main": "index.js",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "scripts": {
     "dev:sdk": "lerna run dev --scope @vaultlayer/sdk --stream",
     "build": "lerna run build --scope @vaultlayer/sdk --stream",

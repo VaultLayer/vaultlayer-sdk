@@ -16,8 +16,8 @@ import { ethers, utils } from 'ethers';
 import type { AxiosResponse } from 'axios';
 import axios from 'axios';
 
-export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_TEST_v3'));
-export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmYEEbGdJBqhrY4nKs3ZavCRqSzpW7Bsbg1trUL7SG6Lsz';
+export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0'));
+export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmdouVTa366pWQHyndMzzerD83imY8GMm8tVAETKMrhLCu';
 
 export interface AuthMethod {
   authMethodType: number | string;
