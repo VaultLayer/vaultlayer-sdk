@@ -16,15 +16,15 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
   const [walletReady, setWalletReady] = useState(true);
   const [connectorReady, setConnectorReady] = useState(false);
   const [selectConnector, setSelectConnector] = useState<BaseConnector>();
-  const { closeConnectModal, smartVault } = useConnectProvider();
+  const { closeConnectModal, accounts } = useConnectProvider();
   const { connect, connectors } = useConnector();
 
   useEffect(() => {
-    if (smartVault) {
-      console.log('smartVault ready');
+    if (accounts) {
+      console.log('accounts ready');
       closeConnectModal();
     }
-  }, [smartVault]);
+  }, [accounts]);
 
   useEffect(() => {
     if (!open) {
@@ -132,11 +132,11 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
             )}
           </div>
 
-          <div className={styles.connection}>{retryVisible ? 'Request Cancelled' : 'Sign-in to Smart Vault'}</div>
+          <div className={styles.connection}>{retryVisible ? 'Request Cancelled' : 'Requesting Accounts'}</div>
           <div className={styles.acceptRequest}>
             {retryVisible
               ? 'You cancelled the request.\nClick above to try again.'
-              : 'Accept the request through your wallet to sign-in to Smart Vault.'}
+              : 'Accept the request through your wallet to get list of accounts'}
           </div>
         </div>
       )}

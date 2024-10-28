@@ -1,4 +1,7 @@
 export enum EventName {
+  startAuth = 'startAuth',
+  authResult = 'authResult',
+
   psbtSign = 'psbtSign',
   psbtSignResult = 'psbtSignResult',
 

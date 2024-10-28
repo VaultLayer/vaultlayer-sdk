@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import ConnectModal from '../components/connectModal';
 import SignModal from '../components/signModal';
+import AuthModal from '../components/authModal';
 import { type BaseConnector } from '../connector/base';
 import useModalStateValue from '../hooks/useModalStateValue';
 import { EventName } from '../types/eventName';
@@ -24,11 +25,14 @@ import {
   authenticateWithGoogle,
   authenticateWithEthWallet,
   authenticateWithBtcWallet,
+  authenticateWithBtcOrdinal,
   getPKPs,
   mintPKP,
   signWithLitAction,
   BITCOIN_AUTH_METHOD_TYPE,
   BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
+  INSCRIPTION_AUTH_METHOD_TYPE,
+  INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
 } from '../utils/lit';
 import type { BTCAddress } from '../utils/bitcoinUtils';
 import { getBtcPubkey, getBtcAccounts } from '../utils/bitcoinUtils';
@@ -61,6 +65,8 @@ interface GlobalState {
   getPublicKey: () => Promise<string>;
   signMessageBtc: (message: string) => Promise<string>;
   signMessageEth: (message: string) => Promise<string>;
+  authWithWallet: (accounts: string[]) => Promise<AuthMethod | undefined>;
+  authWithLSV: (address: string, inscriptionId: string) => Promise<AuthMethod | undefined>;
   authMethod?: AuthMethod;
   smartVault?: Vault;
   vaults?: Vault[];
@@ -77,7 +83,7 @@ interface GlobalState {
 
 const ConnectContext = createContext<GlobalState>({} as any);
 
-const LIT_NETWORK = (process.env.LIT_NETWORK as LIT_NETWORKS_KEYS) || ('datil-dev' as LIT_NETWORKS_KEYS);
+const LIT_NETWORK = (process.env.LIT_NETWORK as LIT_NETWORKS_KEYS) || ('datil' as LIT_NETWORKS_KEYS);
 const RELAYER_LIT_API = process.env.LIT_API_KEY || 'test-api-key';
 
 const litClientConfig: LitNodeClientConfig = {
@@ -98,7 +104,9 @@ export const ConnectProvider = ({
     apiUrl: string;
     domain: string;
     showVaultButton: boolean;
+    authOnConnect: boolean;
     walletConnect?: any;
+    unisatApiKey?: string;
   };
   connectors: BaseConnector[];
   autoConnect?: boolean;
@@ -110,6 +118,7 @@ export const ConnectProvider = ({
   } = useModalStateValue();
 
   const { closeModal: closeSignModal, isModalOpen: signModalOpen, openModal: openSignModal } = useModalStateValue();
+  const { closeModal: closeAuthModal, isModalOpen: authModalOpen, openModal: openAuthModal } = useModalStateValue();
 
   const [connectorId, setConnectorId] = useState<string>();
   const [accounts, setAccounts] = useState<string[]>([]);
@@ -247,12 +256,12 @@ export const ConnectProvider = ({
   /*
    * Initialize authMethod
    */
-
-  useEffect(() => {
-    const authWithEthWallet = async () => {
+  const authWithWallet = useCallback(
+    async (accounts: string[]): Promise<AuthMethod | undefined> => {
       try {
-        console.log('authWithEthWallet start');
+        console.log('authWithWallet start');
         console.log('connector type:', connector?.metadata.type);
+        events.emit(EventName.startAuth, { address: accounts[0] });
         if (connector?.metadata.type === 'uxto') {
           const result: AuthMethod = await authenticateWithBtcWallet(
             litNodeClient,
@@ -263,6 +272,7 @@ export const ConnectProvider = ({
           );
           console.log('authWithEthWallet uxto authMethod:', result);
           setAuthMethod(result);
+          return result;
         } else {
           const result: AuthMethod = await authenticateWithEthWallet(
             litNodeClient,
@@ -273,18 +283,67 @@ export const ConnectProvider = ({
           );
           console.log('authWithEthWallet eth authMethod:', result);
           setAuthMethod(result);
+          return result;
         }
       } catch (e) {
         setAuthMethod(undefined);
         console.error('authWithEthWallet error', e);
       }
-    };
+    },
+    [litAuthClient, litNodeClient, connector, setAuthMethod]
+  );
 
-    if (accounts.length > 0 && litNodeClient?.ready && !authMethod) {
-      console.log('calling authWithEthWallet');
-      authWithEthWallet().catch(console.error);
+  /*
+   * Initialize authMethod
+   */
+  const authWithLSV = useCallback(
+    async (address: string, inscriptionId: string): Promise<AuthMethod | undefined> => {
+      try {
+        console.log('authWithNFT start');
+        localStorage.removeItem('lit-session-key');
+        localStorage.removeItem('lit-wallet-sig');
+        console.log('connector type:', connector?.metadata.type);
+        events.emit(EventName.startAuth, { address: accounts[0], inscriptionId: inscriptionId });
+        if (connector?.metadata.type === 'uxto') {
+          const result: AuthMethod = await authenticateWithBtcOrdinal(
+            litNodeClient,
+            litAuthClient,
+            options.domain,
+            address,
+            inscriptionId,
+            signMessageBtc
+          );
+          console.log('authWithNFT uxto authMethod:', result);
+          setAuthMethod(result);
+          return result;
+        } else {
+          /*const result: AuthMethod = await authenticateWithEthNFT(
+            litNodeClient,
+            litAuthClient,
+            options.domain,
+            address,
+            tokenId,
+            signMessageEth
+          );
+          console.log('authWithNFT eth authMethod:', result);
+          setAuthMethod(result);
+          return result;*/
+          return undefined;
+        }
+      } catch (e) {
+        setAuthMethod(undefined);
+        console.error('authWithNFT error', e);
+      }
+    },
+    [litAuthClient, litNodeClient, connector, setAuthMethod]
+  );
+
+  useEffect(() => {
+    if (accounts.length > 0 && litNodeClient?.ready && !authMethod && options.authOnConnect) {
+      console.log('calling authWithWallet');
+      authWithWallet(accounts);
     }
-  }, [accounts]);
+  }, [accounts, options]);
 
   /**
    * Mint a new PKP for current auth method
@@ -339,7 +398,7 @@ export const ConnectProvider = ({
         return [];
       }
     },
-    [litAuthClient, createVault]
+    [litAuthClient, createVault, setVaults, setSmartVault]
   );
 
   /*
@@ -378,14 +437,36 @@ export const ConnectProvider = ({
               },
             ],
           });
-        } else {
+        } else if (authMethod.authMethodType == BITCOIN_AUTH_METHOD_TYPE) {
           controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
             pkpPublicKey: smartVault.publicKey,
             litActionIpfsId: BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
             jsParams: {
               accessToken: authMethod.accessToken,
-              network: 'datil-dev',
+              network: 'datil',
               pkpTokenId: smartVault.tokenId,
+            },
+            resourceAbilityRequests: [
+              {
+                resource: new LitPKPResource('*'),
+                ability: LitAbility.PKPSigning,
+              },
+              {
+                resource: new LitActionResource('*'),
+                ability: LitAbility.LitActionExecution,
+              },
+            ],
+          });
+        } else if (authMethod.authMethodType == INSCRIPTION_AUTH_METHOD_TYPE) {
+          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+            pkpPublicKey: smartVault.publicKey,
+            litActionIpfsId: INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
+            jsParams: {
+              accessToken: authMethod.accessToken,
+              network: 'datil',
+              pkpTokenId: smartVault.tokenId,
+              unisatApiKey: options.unisatApiKey,
+              debug: true,
             },
             resourceAbilityRequests: [
               {
@@ -543,7 +624,15 @@ export const ConnectProvider = ({
           console.log('calling vaultBtcSigner signWithLitAction with hash', hash);
           return new Promise((resolve, rejects) => {
             console.log('calling vaultBtcSigner signWithLitAction with authMethod', authMethod);
-            signWithLitAction(litNodeClient, litAuthClient, authMethod, hash, smartVault.publicKey)
+            signWithLitAction(
+              litNodeClient,
+              litAuthClient,
+              authMethod,
+              hash,
+              smartVault.publicKey,
+              smartVault.tokenId,
+              options.unisatApiKey
+            )
               .then(function (sig) {
                 const signatureBuf = Buffer.from((sig as any).r + (sig as any).s, 'hex');
                 resolve(signatureBuf);
@@ -557,7 +646,7 @@ export const ConnectProvider = ({
       console.log('vaultBtcSigner:', signer);
       setVaultBtcSigner(signer);
     }
-  }, [smartVault]);
+  }, [smartVault, vaultBtcSigner]);
 
   const disconnect = useCallback(() => {
     console.log('disconnecting');
@@ -570,18 +659,23 @@ export const ConnectProvider = ({
       litNodeClient.disconnect();
     }
     setConnectorId(undefined);
-    setLitNodeClient(undefined);
-    setLitAuthClient(undefined);
+    setAccounts([]);
     setAuthMethod(undefined);
     setVaults([]);
     setSmartVault(undefined);
-    setAccounts([]);
+    setVaultBtcSigner(undefined);
+    setVaultEthClient(undefined);
+    setVaultEthWallet(undefined);
+    setVaultWalletConnect(undefined);
+    localStorage.removeItem('lit-session-key');
+    localStorage.removeItem('lit-wallet-sig');
   }, [connector]);
 
   useEffect(() => {
     if (accounts.length === 0) {
       closeConnectModal();
       closeSignModal();
+      closeAuthModal();
       if (events.listenerCount(EventName.psbtSignResult) > 0) {
         events.emit(EventName.psbtSignResult, {
           error: {
@@ -622,6 +716,8 @@ export const ConnectProvider = ({
         getPublicKey,
         signMessageBtc,
         signMessageEth,
+        authWithWallet,
+        authWithLSV,
         authMethod,
         smartVault,
         vaults,
@@ -639,6 +735,7 @@ export const ConnectProvider = ({
       {children}
       <ConnectModal open={connectModalOpen} onClose={closeConnectModal} />
       <SignModal open={signModalOpen} onClose={closeSignModal} onOpen={openSignModal} />
+      <AuthModal open={authModalOpen} onClose={closeAuthModal} onOpen={openAuthModal} />
       {showVault && <ModalView />}
     </ConnectContext.Provider>
   );

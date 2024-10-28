@@ -8,5 +8,3 @@ export { UnisatConnector } from './unisat';
 export { WizzConnector } from './wizz';
 export { XverseConnector } from './xverse';
 export { EthereumConnector } from './ethereum';
-
-

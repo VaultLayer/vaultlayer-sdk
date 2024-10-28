@@ -6,6 +6,7 @@ import axios from 'axios';
 import { ECPairFactory } from 'ecpair';
 import ecc from '@bitcoinerlab/secp256k1';
 import { toOutputScript } from 'bitcoinjs-lib/src/address';
+import { BIP322, Address } from 'bip322-js';
 
 export interface WitnessUtxo {
   script: Buffer;
@@ -280,4 +281,70 @@ export const prepareTransaction = (
   });
 
   return { psbt, fee };
+};
+
+export const getSchnorrHash = (signerAddress: string, message: string, signatureBase64: string) => {
+  // Convert address into corresponding script pubkey
+  const scriptPubKey = Address.convertAdressToScriptPubkey(signerAddress);
+  // Draft corresponding toSpend and toSign transaction using the message and script pubkey
+  const toSpendTx = BIP322.buildToSpendTx(message, scriptPubKey);
+  const toSignTx = BIP322.buildToSignTx(toSpendTx.getId(), scriptPubKey);
+  // Add the witness stack into the toSignTx
+  toSignTx.updateInput(0, {
+    finalScriptWitness: Buffer.from(signatureBase64, 'base64'),
+  });
+  // Obtain the signature within the witness components
+  const witness = toSignTx.extractTransaction().ins[0].witness;
+  const encodedSignature = witness[0];
+
+  // Check if the witness stack correspond to a single-key-spend P2TR address
+  if (!Address.isSingleKeyP2TRWitness(witness)) {
+    throw new Error('BIP-322 verification from script-spend P2TR is unsupported.');
+  }
+  // For taproot address, the public key is located starting from the 3rd byte of the script public key
+  const publicKey = scriptPubKey.subarray(2);
+  console.log('getSchnorrParams publicKey:', publicKey);
+  // Compute the hash to be signed by the signing address
+  // Reference: https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#user-content-Taproot_key_path_spending_signature_validation
+  let hashToSign: Buffer;
+  let signature: Buffer;
+  if (encodedSignature.byteLength === 64) {
+    // If a BIP-341 signature is 64 bytes, the signature is signed using SIGHASH_DEFAULT 0x00
+    hashToSign = getHashForSigP2TR(toSignTx, 0x00);
+    // And the entirety of the encoded signature is the actual signature
+    signature = encodedSignature;
+  } else if (encodedSignature.byteLength === 65) {
+    // If a BIP-341 signature is 65 bytes, the signature is signed using SIGHASH included at the last byte of the signature
+    hashToSign = getHashForSigP2TR(toSignTx, encodedSignature[64]);
+    // And encodedSignature[0:64] holds the actual signature
+    signature = encodedSignature.subarray(0, -1);
+  } else {
+    // Fail validation if the signature is not 64 or 65 bytes
+    throw new Error('Invalid Schnorr signature provided.');
+  }
+  return {
+    hashToSign,
+    publicKey,
+    signature,
+  };
+};
+
+export const getHashForSigP2TR = (toSignTx: bitcoin.Psbt, hashType: number) => {
+  // BIP-322 states that 'all signatures must use the SIGHASH_ALL flag'
+  // But, in BIP-341, SIGHASH_DEFAULT (0x00) is equivalent to SIGHASH_ALL (0x01) so both should be allowed
+  if (hashType !== bitcoin.Transaction.SIGHASH_DEFAULT && hashType !== bitcoin.Transaction.SIGHASH_ALL) {
+    // Throw error if hashType is neither SIGHASH_DEFAULT or SIGHASH_ALL
+    throw new Error('Invalid SIGHASH used in signature. Must be either SIGHASH_ALL or SIGHASH_DEFAULT.');
+  }
+  if (!toSignTx.data.inputs[0].witnessUtxo) {
+    throw new Error('No witnessUtxo used in signature');
+  }
+  // Return computed transaction hash to be signed
+  return toSignTx.extractTransaction().hashForWitnessV1(0, [toSignTx.data.inputs[0].witnessUtxo.script], [0], hashType);
+};
+
+export const verifySchnorr = async (signerAddress: string, message: string, signatureBase64: string) => {
+  const { hashToSign, publicKey, signature } = getSchnorrHash(signerAddress, message, signatureBase64);
+  // Computing OP_CHECKSIG in Javascript
+  return ecc.verifySchnorr(hashToSign, publicKey, signature);
 };

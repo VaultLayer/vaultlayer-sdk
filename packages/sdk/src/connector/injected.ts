@@ -36,14 +36,15 @@ export abstract class InjectedConnector extends BaseConnector {
     return this.getProviderOrThrow().getPublicKey();
   }
   async signMessage(signStr: string, type?: 'ecdsa' | 'bip322-simple'): Promise<string> {
-    console.log('signMessage signStr',signStr);
+    console.log('signMessage signStr', signStr);
     const addresses = await this.getAccounts();
     if (addresses.length === 0) {
       throw new Error(`${this.metadata.name} not connected!`);
     }
     //return this.getProviderOrThrow().signMessage(signStr, type);
+    console.log('signMessage type', type);
     const sig = await this.getProviderOrThrow().signMessage(signStr, type);
-    console.log('signMessage sig',sig);
+    console.log('signMessage sig', sig);
     return sig;
   }
   on(event: string, handler: (data?: unknown) => void) {

@@ -13,11 +13,16 @@ import { AuthCallbackParams, AuthSig } from '@lit-protocol/types';
 import { LitAbility, LitPKPResource, LitActionResource } from '@lit-protocol/auth-helpers';
 import { createSiweMessageWithRecaps, generateAuthSig } from '@lit-protocol/auth-helpers';
 import { ethers, utils } from 'ethers';
-import type { AxiosResponse } from 'axios';
-import axios from 'axios';
+import { getSchnorrHash } from './bitcoinUtils';
 
-export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0'));
-export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmdouVTa366pWQHyndMzzerD83imY8GMm8tVAETKMrhLCu';
+export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0_3'));
+export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmS1CJZrZ1HNgmwiGN85Lscov3ybbZ77yVLCs4UsAcmPjJ';
+export const INSCRIPTION_AUTH_METHOD_TYPE = ethers.utils.keccak256(
+  ethers.utils.toUtf8Bytes('BITCOIN_INSCRIPTION_V0_10')
+);
+export const INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID = 'QmVuvhCTqFhuP1kBQu6gJVBK7p1PcWwwNgkm3KEJDmrDaZ';
+export const NFT_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('NFT_V0'));
+export const NFT_AUTH_LIT_ACTION_IPFS_CID = 'QmdouVTa366pWQHyndMzzerD83imY8GMm8tVAETKMrhLCu';
 
 export interface AuthMethod {
   authMethodType: number | string;
@@ -129,7 +134,7 @@ export async function authenticateWithEthWallet(
 }
 
 /**
- * Get auth method object by signing a message with an Ethereum wallet
+ * Get auth method object by signing a message with a Bitcoin wallet
  */
 export async function authenticateWithBtcWallet(
   litNodeClient: LitNodeClient | undefined,
@@ -167,6 +172,57 @@ export async function authenticateWithBtcWallet(
   };
   const authMethod = {
     authMethodType: BITCOIN_AUTH_METHOD_TYPE,
+    accessToken: JSON.stringify(authSig),
+  };
+
+  return authMethod;
+}
+
+/**
+ * Get auth method object by signing a message with a Bitcoin wallet
+ */
+export async function authenticateWithBtcOrdinal(
+  litNodeClient: LitNodeClient | undefined,
+  litAuthClient: LitAuthClient | undefined,
+  domain: string,
+  address: string,
+  inscriptionId: string,
+  signMessage: (message: string) => Promise<string>
+): Promise<AuthMethod> {
+  if (!litNodeClient) {
+    throw new Error('No litNodeClient');
+  }
+  if (!litAuthClient) {
+    throw new Error('No litAuthClient');
+  }
+
+  // Get expiration or default to 24 hours
+  const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
+  const siweMsg = {
+    domain: domain,
+    statement: `Sign-in to VaultLayer.xyz - Liquid Staking Vault with inscriptionId: ${inscriptionId}`,
+    uri: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
+    expiration: expiration,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    nonce: litNodeClient.latestBlockhash!,
+  };
+  const toSign = `${domain} wants you to sign in with your Bitcoin account:\n${address}\n\n${siweMsg.statement}\n\nURI: ${siweMsg.uri}\nNonce: ${siweMsg.nonce}\nExpiration Time: ${siweMsg.expiration}`;
+
+  const signatureBase64 = await signMessage(toSign);
+  const { hashToSign, publicKey, signature } = getSchnorrHash(address, toSign, signatureBase64);
+  const authSig = {
+    sig: signatureBase64,
+    derivedVia: 'bitcoin.schnorr.signMessage',
+    signedMessage: toSign,
+    signature: signature.toString('base64'),
+    hashToSign: hashToSign.toString('hex'),
+    publicKey: publicKey.toString('hex'),
+    address: address,
+    inscriptionId: inscriptionId,
+  };
+  const authMethod = {
+    authMethodType: INSCRIPTION_AUTH_METHOD_TYPE,
     accessToken: JSON.stringify(authSig),
   };
 
@@ -332,7 +388,9 @@ export async function signWithLitAction(
   litAuthClient: LitAuthClient | undefined,
   authMethod: any,
   hashForSig: Buffer,
-  pkpPublicKey: string
+  pkpPublicKey: string,
+  tokenId: string,
+  unisatApiKey: string | undefined
 ): Promise<string> {
   if (!litNodeClient) {
     throw new Error('No litNodeClient');
@@ -354,26 +412,71 @@ export async function signWithLitAction(
 `;
 
   // Get session signatures for the given PKP public key and auth method
-  const sessionSigs = await litNodeClient.getPkpSessionSigs({
-    pkpPublicKey: pkpPublicKey,
-    authMethods: [authMethod],
-    chain: 'ethereum',
-    resourceAbilityRequests: [
-      {
-        resource: new LitPKPResource('*'),
-        ability: LitAbility.PKPSigning,
+  let controllerSessionSigs: any;
+  if (authMethod.authMethodType == AuthMethodType.EthWallet) {
+    controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+      pkpPublicKey: pkpPublicKey,
+      authMethods: [authMethod as any],
+      chain: 'ethereum',
+      resourceAbilityRequests: [
+        {
+          resource: new LitPKPResource('*'),
+          ability: LitAbility.PKPSigning,
+        },
+        {
+          resource: new LitActionResource('*'),
+          ability: LitAbility.LitActionExecution,
+        },
+      ],
+    });
+  } else if (authMethod.authMethodType == BITCOIN_AUTH_METHOD_TYPE) {
+    controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+      pkpPublicKey: pkpPublicKey,
+      litActionIpfsId: BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
+      jsParams: {
+        accessToken: authMethod.accessToken,
+        network: 'datil',
+        pkpTokenId: tokenId,
       },
-      {
-        resource: new LitActionResource('*'),
-        ability: LitAbility.LitActionExecution,
+      resourceAbilityRequests: [
+        {
+          resource: new LitPKPResource('*'),
+          ability: LitAbility.PKPSigning,
+        },
+        {
+          resource: new LitActionResource('*'),
+          ability: LitAbility.LitActionExecution,
+        },
+      ],
+    });
+  } else if (authMethod.authMethodType == INSCRIPTION_AUTH_METHOD_TYPE) {
+    controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+      pkpPublicKey: pkpPublicKey,
+      litActionIpfsId: INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
+      jsParams: {
+        accessToken: authMethod.accessToken,
+        network: 'datil',
+        pkpTokenId: tokenId,
+        unisatApiKey: unisatApiKey,
+        debug: true,
       },
-    ],
-  });
-  console.log('signWithLitAction getSessionSigs', sessionSigs);
+      resourceAbilityRequests: [
+        {
+          resource: new LitPKPResource('*'),
+          ability: LitAbility.PKPSigning,
+        },
+        {
+          resource: new LitActionResource('*'),
+          ability: LitAbility.LitActionExecution,
+        },
+      ],
+    });
+  }
+  console.log('signWithLitAction controllerSessionSigs', controllerSessionSigs);
 
   const { signatures } = (await litNodeClient.executeJs({
     code: litActionCode,
-    sessionSigs,
+    sessionSigs: controllerSessionSigs,
     jsParams: {
       toSign: hashForSig,
       publicKey: pkpPublicKey,

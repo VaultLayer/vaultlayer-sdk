@@ -41,11 +41,11 @@ export default function Home() {
   const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } =
     useWalletProvider();
   // Smart Vault accounts:
-  const { smartVault } = useVaultProvider();
+  const { smartVault, authWithWallet, authWithLSV } = useVaultProvider();
   const ethProvider = useEthereumProvider();
   const btcProvider = useBitcoinProvider();
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
-  const [inscriptionId, setInscriptionId] = useState<string>();
+  const [inscriptionId, setInscriptionId] = useState<string>('');
   const [message, setMessage] = useState<string>('Hello, VaultLayer!');
   const [walletConnectUri, setWalletConnectUri] = useState<string>(
     'Get wc: url from https://react-app.walletconnect.com/'
@@ -159,6 +159,26 @@ export default function Home() {
         toast.error(error.message || 'switch chain error');
         console.log('🚀 ~ onSwitchChain ~ error:', error);
       }
+    }
+  };
+
+  const onAuthVaultWithWallet = async () => {
+    try {
+      const auth = await authWithWallet(accounts);
+      toast.success(auth?.authMethodType);
+    } catch (error: any) {
+      console.log('🚀 ~ onGetVaultNetwork ~ error:', error);
+      toast.error(error.message || 'get vaultBtcNetwork error');
+    }
+  };
+
+  const onAuthVaultWithLSV = async () => {
+    try {
+      const auth = await authWithLSV(accounts[0], inscriptionId);
+      toast.success(auth?.authMethodType);
+    } catch (error: any) {
+      console.log('🚀 ~ onGetVaultNetwork ~ error:', error);
+      toast.error(error.message || 'get vaultBtcNetwork error');
     }
   };
 
@@ -332,6 +352,16 @@ export default function Home() {
 
             {connector.metadata.type === 'uxto' && (
               <>
+                <Button color="secondary" onClick={onAuthVaultWithWallet}>
+                  Auth with Wallet
+                </Button>
+                <Input label="Inscription Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
+                <Button color="secondary" onClick={onAuthVaultWithLSV}>
+                  Auth with LSV
+                </Button>
+
+                <Divider />
+
                 <Button color="primary" onClick={onGetNetwork}>
                   Get Network
                 </Button>
@@ -360,6 +390,10 @@ export default function Home() {
             )}
             {connector.metadata.type === 'eth' && (
               <>
+                <Button color="secondary" onClick={onAuthVaultWithWallet}>
+                  Auth with Wallet
+                </Button>
+
                 <Button color="primary" onClick={onGetNetwork}>
                   Get Network
                 </Button>

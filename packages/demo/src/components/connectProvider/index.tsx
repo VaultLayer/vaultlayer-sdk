@@ -15,6 +15,7 @@ export default function ConnectProvider({ children }: { children: React.ReactNod
         apiUrl: process.env.NEXT_PUBLIC_VAULTLAYER_API_URL as string,
         apiKey: process.env.NEXT_PUBLIC_VAULTLAYER_API_KEY as string,
         domain: 'localhost',
+        authOnConnect: false,
         showVaultButton: true,
         walletConnect: {
           projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
@@ -25,6 +26,7 @@ export default function ConnectProvider({ children }: { children: React.ReactNod
             icons: [process.env.NEXT_PUBLIC_WALLETCONNECT_ICON],
           },
         },
+        unisatApiKey: process.env.NEXT_PUBLIC_UNISAT_API_KEY,
       }}
       connectors={[new UnisatConnector(), new OKXConnector(), new XverseConnector(), new EthereumConnector()]}
     >

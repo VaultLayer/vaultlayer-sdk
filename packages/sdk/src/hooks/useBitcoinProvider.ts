@@ -165,6 +165,7 @@ export const useBitcoinProvider = () => {
       });
       const res = await provider.getFeeRate(fee);
       console.log('feeRate:', res);
+      return 10;
       return res;
     },
     [btcNetwork]
