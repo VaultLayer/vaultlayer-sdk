@@ -356,7 +356,8 @@ export async function getPKPs(apiUrl: string, authMethod: AuthMethod): Promise<I
     if (allPKPs) return allPKPs;
     else return [];
   } catch (error: any) {
-    throw new Error(`Failed to broadcast transaction: ${error.response.data ?? error}`);
+    console.error(`Failed to getPKPs: ${error?.response?.data ?? error}`);
+    throw new Error('Failed to getPKPs');
   }
 }
 

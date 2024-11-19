@@ -10,6 +10,7 @@ import styles from './sign.module.scss';
 const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: () => void }) => {
   const [authArguments, setAuthArguments] = useState<any>();
   const [loading, setLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const { smartVault, authMethod } = useConnectProvider();
 
   useEffect(() => {
@@ -40,7 +41,12 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       console.log('setAuthArguments:', arg);
       onOpen();
     };
+    const onAuthResult = (arg: any) => {
+      console.log('setErrorMessage:', arg);
+      setErrorMessage(JSON.stringify(arg));
+    };
     events.on(EventName.startAuth, onStartAuth);
+    events.on(EventName.authResult, onAuthResult);
     return () => {
       events.off(EventName.startAuth, onOpen);
     };
@@ -64,7 +70,7 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       {authArguments && (
         <div className={styles.connecting}>
           <div className={styles.connectingIconContainer}>
-            <img className={styles.connectingIcon} src={vaultIcon} alt={''} />
+            <img className={styles.connectingIcon} width={'60px'} src={vaultIcon} alt={''} />
           </div>
 
           <div className={styles.connection}>
@@ -86,6 +92,7 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           ) : (
             <div className={styles.acceptRequest}>Loading...</div>
           )}
+          {errorMessage && <div className={styles.acceptRequest}>ERROR: {errorMessage}</div>}
         </div>
       )}
     </Modal>

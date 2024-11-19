@@ -1,6 +1,6 @@
 {
   "name": "@vaultlayer/sdk",
-  "version": "0.1.10",
+  "version": "0.1.13",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",

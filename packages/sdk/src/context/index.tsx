@@ -392,8 +392,9 @@ export const ConnectProvider = ({
         //TODO const network = ?????
         const testnet = true;
         // Fetch PKPs tied to given auth method
-        console.log('getVaults litAuthClient: ', litAuthClient);
         const myPKPs = await getPKPs(options.apiUrl, authMethod);
+        console.log('myPKPs response: ', myPKPs);
+        if (!Array.isArray(myPKPs)) throw new Error(myPKPs);
         if (myPKPs.length > 0) {
           //map
           const myVaults = myPKPs.map((v) => ({
@@ -409,8 +410,9 @@ export const ConnectProvider = ({
           if (newVault) return [newVault];
           else return [];
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('getVaults error', e);
+        events.emit(EventName.authResult, `Error getting/creating vault ${e}`);
         return [];
       }
     },
