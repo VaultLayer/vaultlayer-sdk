@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import { useConnectProvider, Vault } from '../context';
 
 export const useVaultProvider = () => {
-  const { smartVault, authMethod, vaults, getVaults, authWithWallet, authWithLSV } = useConnectProvider();
+  const { smartVault, authMethod, vaults, getVaults, authWithWallet, authWithLSV, disconnectVault } =
+    useConnectProvider();
 
   // TODO
   const addAuthMethod = useCallback(
@@ -23,5 +24,6 @@ export const useVaultProvider = () => {
     addAuthMethod,
     authWithWallet,
     authWithLSV,
+    disconnectVault,
   };
 };

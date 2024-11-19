@@ -18,9 +18,11 @@ import { getSchnorrHash } from './bitcoinUtils';
 export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0_3'));
 export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmS1CJZrZ1HNgmwiGN85Lscov3ybbZ77yVLCs4UsAcmPjJ';
 export const INSCRIPTION_AUTH_METHOD_TYPE = ethers.utils.keccak256(
-  ethers.utils.toUtf8Bytes('BITCOIN_INSCRIPTION_V0_10')
+  ethers.utils.toUtf8Bytes('BITCOIN_INSCRIPTION_V0_11')
 );
-export const INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID = 'QmVuvhCTqFhuP1kBQu6gJVBK7p1PcWwwNgkm3KEJDmrDaZ';
+export const INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID = 'QmXEHbZFSUR9GjS9xxncxjbdr67ek3X4HURkmUfdp1q8nR';
+export const CAT721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_CAT721_V0_2'));
+export const CAT721_AUTH_LIT_ACTION_IPFS_CID = 'Qmc4CsPLqErMr96p9a8Lfj9vbyieuwcS8exMDQKbZa2o2q';
 export const NFT_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('NFT_V0'));
 export const NFT_AUTH_LIT_ACTION_IPFS_CID = 'QmdouVTa366pWQHyndMzzerD83imY8GMm8tVAETKMrhLCu';
 
@@ -186,7 +188,7 @@ export async function authenticateWithBtcOrdinal(
   litAuthClient: LitAuthClient | undefined,
   domain: string,
   address: string,
-  inscriptionId: string,
+  lsvId: string,
   signMessage: (message: string) => Promise<string>
 ): Promise<AuthMethod> {
   if (!litNodeClient) {
@@ -195,6 +197,7 @@ export async function authenticateWithBtcOrdinal(
   if (!litAuthClient) {
     throw new Error('No litAuthClient');
   }
+  const inscriptionId = lsvId.split(':')[1];
 
   // Get expiration or default to 24 hours
   const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
@@ -223,6 +226,58 @@ export async function authenticateWithBtcOrdinal(
   };
   const authMethod = {
     authMethodType: INSCRIPTION_AUTH_METHOD_TYPE,
+    accessToken: JSON.stringify(authSig),
+  };
+
+  return authMethod;
+}
+
+/**
+ * Get auth method object by signing a message with a Bitcoin wallet
+ */
+export async function authenticateWithBtcCat721(
+  litNodeClient: LitNodeClient | undefined,
+  litAuthClient: LitAuthClient | undefined,
+  domain: string,
+  address: string,
+  lsvId: string,
+  signMessage: (message: string) => Promise<string>
+): Promise<AuthMethod> {
+  if (!litNodeClient) {
+    throw new Error('No litNodeClient');
+  }
+  if (!litAuthClient) {
+    throw new Error('No litAuthClient');
+  }
+
+  // Get expiration or default to 24 hours
+  const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
+  const siweMsg = {
+    domain: domain,
+    statement: `Sign-in to VaultLayer.xyz - Liquid Staking Vault with lsvId: ${lsvId}`,
+    uri: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
+    expiration: expiration,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    nonce: litNodeClient.latestBlockhash!,
+  };
+  const toSign = `${domain} wants you to sign in with your Bitcoin account:\n${address}\n\n${siweMsg.statement}\n\nURI: ${siweMsg.uri}\nNonce: ${siweMsg.nonce}\nExpiration Time: ${siweMsg.expiration}`;
+
+  const signatureBase64 = await signMessage(toSign);
+  const { hashToSign, publicKey, signature } = getSchnorrHash(address, toSign, signatureBase64);
+  const authSig = {
+    sig: signatureBase64,
+    derivedVia: 'bitcoin.schnorr.signMessage',
+    signedMessage: toSign,
+    signature: signature.toString('base64'),
+    hashToSign: hashToSign.toString('hex'),
+    publicKey: publicKey.toString('hex'),
+    address: address,
+    collectionId: lsvId.split(':')[1],
+    localId: lsvId.split(':')[2],
+  };
+  const authMethod = {
+    authMethodType: CAT721_AUTH_METHOD_TYPE,
     accessToken: JSON.stringify(authSig),
   };
 
@@ -346,12 +401,18 @@ export async function mintPKP(
     return newPKP;
   } else {
     try {
-      const newPKP: IRelayPKP = await fetch(`${apiUrl}/api/v1/vault/create`, {
+      const response = await fetch(`${apiUrl}/api/v1/vault/create`, {
         method: 'post',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(authMethod),
-      }).then((result) => result.json());
-      return newPKP;
+      });
+      console.log('Minting response:', response);
+      if (response.ok) {
+        const newPKP: IRelayPKP = await response.json();
+        return newPKP;
+      } else {
+        throw new Error(`Minting failed, ${response.text()}`);
+      }
     } catch (error: any) {
       throw new Error(`Failed to broadcast transaction: ${error.response.data ?? error}`);
     }
@@ -458,6 +519,27 @@ export async function signWithLitAction(
         network: 'datil',
         pkpTokenId: tokenId,
         unisatApiKey: unisatApiKey,
+        debug: true,
+      },
+      resourceAbilityRequests: [
+        {
+          resource: new LitPKPResource('*'),
+          ability: LitAbility.PKPSigning,
+        },
+        {
+          resource: new LitActionResource('*'),
+          ability: LitAbility.LitActionExecution,
+        },
+      ],
+    });
+  } else if (authMethod.authMethodType == CAT721_AUTH_METHOD_TYPE) {
+    controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+      pkpPublicKey: pkpPublicKey,
+      litActionIpfsId: CAT721_AUTH_LIT_ACTION_IPFS_CID,
+      jsParams: {
+        accessToken: authMethod.accessToken,
+        network: 'datil',
+        pkpTokenId: tokenId,
         debug: true,
       },
       resourceAbilityRequests: [

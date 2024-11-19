@@ -22,7 +22,7 @@ import { WalletClientProvider } from '../ethSigner/walletClientProvider';
 import { PKPWalletConnect } from '../utils/walletconnect';
 import type { AuthMethod } from '../utils/lit';
 import {
-  authenticateWithGoogle,
+  authenticateWithBtcCat721,
   authenticateWithEthWallet,
   authenticateWithBtcWallet,
   authenticateWithBtcOrdinal,
@@ -33,6 +33,8 @@ import {
   BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
   INSCRIPTION_AUTH_METHOD_TYPE,
   INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
+  CAT721_AUTH_METHOD_TYPE,
+  CAT721_AUTH_LIT_ACTION_IPFS_CID,
 } from '../utils/lit';
 import type { BTCAddress } from '../utils/bitcoinUtils';
 import { getBtcPubkey, getBtcAccounts } from '../utils/bitcoinUtils';
@@ -62,6 +64,7 @@ interface GlobalState {
   accounts: string[];
   provider: any;
   disconnect: () => void;
+  disconnectVault: () => void;
   getPublicKey: () => Promise<string>;
   signMessageBtc: (message: string) => Promise<string>;
   signMessageEth: (message: string) => Promise<string>;
@@ -297,23 +300,35 @@ export const ConnectProvider = ({
    * Initialize authMethod
    */
   const authWithLSV = useCallback(
-    async (address: string, inscriptionId: string): Promise<AuthMethod | undefined> => {
+    async (address: string, lsvId: string): Promise<AuthMethod | undefined> => {
       try {
         console.log('authWithNFT start');
         localStorage.removeItem('lit-session-key');
         localStorage.removeItem('lit-wallet-sig');
         console.log('connector type:', connector?.metadata.type);
-        events.emit(EventName.startAuth, { address: accounts[0], inscriptionId: inscriptionId });
-        if (connector?.metadata.type === 'uxto') {
+        events.emit(EventName.startAuth, { address: accounts[0], lsvId: lsvId });
+        if (lsvId.startsWith('inscriptionId:')) {
           const result: AuthMethod = await authenticateWithBtcOrdinal(
             litNodeClient,
             litAuthClient,
             options.domain,
             address,
-            inscriptionId,
+            lsvId,
             signMessageBtc
           );
-          console.log('authWithNFT uxto authMethod:', result);
+          console.log('authWithLSV authenticateWithBtcOrdinal:', result);
+          setAuthMethod(result);
+          return result;
+        } else if (lsvId.startsWith('cat721:')) {
+          const result: AuthMethod = await authenticateWithBtcCat721(
+            litNodeClient,
+            litAuthClient,
+            options.domain,
+            address,
+            lsvId,
+            signMessageBtc
+          );
+          console.log('authWithLSV authenticateWithBtcCat721:', result);
           setAuthMethod(result);
           return result;
         } else {
@@ -360,11 +375,12 @@ export const ConnectProvider = ({
         setVaults((prev) => [...prev, newVault]);
         setSmartVault(newVault);
         return newVault;
-      } catch (e) {
-        console.error('createVault error', e);
+      } catch (error) {
+        console.error('createVault error', error);
+        throw new Error('createVault failed');
       }
     },
-    [litAuthClient]
+    [litAuthClient, setSmartVault, setVaults]
   );
 
   /**
@@ -466,6 +482,27 @@ export const ConnectProvider = ({
               network: 'datil',
               pkpTokenId: smartVault.tokenId,
               unisatApiKey: options.unisatApiKey,
+              debug: true,
+            },
+            resourceAbilityRequests: [
+              {
+                resource: new LitPKPResource('*'),
+                ability: LitAbility.PKPSigning,
+              },
+              {
+                resource: new LitActionResource('*'),
+                ability: LitAbility.LitActionExecution,
+              },
+            ],
+          });
+        } else if (authMethod.authMethodType == CAT721_AUTH_METHOD_TYPE) {
+          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+            pkpPublicKey: smartVault.publicKey,
+            litActionIpfsId: CAT721_AUTH_LIT_ACTION_IPFS_CID,
+            jsParams: {
+              accessToken: authMethod.accessToken,
+              network: 'datil',
+              pkpTokenId: smartVault.tokenId,
               debug: true,
             },
             resourceAbilityRequests: [
@@ -671,6 +708,19 @@ export const ConnectProvider = ({
     localStorage.removeItem('lit-wallet-sig');
   }, [connector]);
 
+  const disconnectVault = useCallback(() => {
+    console.log('disconnecting vault');
+    setAuthMethod(undefined);
+    setVaults([]);
+    setSmartVault(undefined);
+    setVaultBtcSigner(undefined);
+    setVaultEthClient(undefined);
+    setVaultEthWallet(undefined);
+    setVaultWalletConnect(undefined);
+    localStorage.removeItem('lit-session-key');
+    localStorage.removeItem('lit-wallet-sig');
+  }, []);
+
   useEffect(() => {
     if (accounts.length === 0) {
       closeConnectModal();
@@ -713,6 +763,7 @@ export const ConnectProvider = ({
         accounts,
         provider,
         disconnect,
+        disconnectVault,
         getPublicKey,
         signMessageBtc,
         signMessageEth,

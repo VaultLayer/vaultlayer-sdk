@@ -68,17 +68,16 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           </div>
 
           <div className={styles.connection}>
-            {authArguments.inscriptionId ? 'Authenticating with Inscription' : 'Authenticating with Wallet'}
+            {authArguments.lsvId ? 'Authenticating with LSV Id' : 'Authenticating with Wallet'}
           </div>
           {authArguments.address && (
             <div className={styles.unsignedMessage}>
               Address: {`${authArguments.address.slice(0, 5)}...${authArguments.address.slice(-4)}`} <br />
             </div>
           )}
-          {authArguments.inscriptionId && (
+          {authArguments.lsvId && (
             <div className={styles.unsignedMessage}>
-              Inscription ID: {`${authArguments.inscriptionId.slice(0, 5)}...${authArguments.inscriptionId.slice(-4)}`}{' '}
-              <br />
+              LSV ID: {`${authArguments.lsvId.slice(0, 6)}...${authArguments.lsvId.slice(-4)}`} <br />
             </div>
           )}
 
