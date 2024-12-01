@@ -19,7 +19,7 @@ export const useBitcoinProvider = () => {
       fromAddress: string,
       toAddress: string,
       satoshis: number,
-      options: { fee: FeeSpeedType | string; bitcoinRpc: string; forceHideConfirmModal?: boolean }
+      options: { feeRate?: number; fee?: FeeSpeedType | string; bitcoinRpc?: string; forceHideConfirmModal?: boolean }
     ) => {
       if (!smartVault) {
         throw new Error('The smart vault is not initialized.');
@@ -38,11 +38,15 @@ export const useBitcoinProvider = () => {
 
       const utxos = await getUtxos(fromAddress);
       console.log('sendBitcoin utxosResponse:', utxos);
-
-      const feeRate = await getNetworkFee(options.fee);
+      let feeRateBytes = 1;
+      if (options.fee) {
+        feeRateBytes = await getNetworkFee(options.fee);
+      } else if (options.feeRate) {
+        feeRateBytes = options.feeRate;
+      }
 
       // 2) prepare transaction
-      const { psbt, fee } = prepareTransaction(utxos, toAddress, satoshis, fromAddress, feeRate ? feeRate : 0);
+      const { psbt, fee } = prepareTransaction(utxos, toAddress, satoshis, fromAddress, feeRateBytes);
       console.log('sendBitcoin pstb:', psbt);
       if (!psbt) {
         throw new Error('Could not prepare Psbt');

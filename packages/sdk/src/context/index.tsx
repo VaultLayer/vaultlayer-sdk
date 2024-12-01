@@ -6,7 +6,6 @@ import { type BaseConnector } from '../connector/base';
 import useModalStateValue from '../hooks/useModalStateValue';
 import { EventName } from '../types/eventName';
 import events from '../utils/eventUtils';
-import { convertSignature, pubKeyToEthAddress, verifySignature, sigToEthAddress } from '../utils/ethereumUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
 import type { SignerAsync } from 'bitcoinjs-lib';
@@ -221,10 +220,6 @@ export const ConnectProvider = ({
       console.log('signMessage context message:', message);
 
       const signature = await connector.signMessage(message);
-      if (connector.metadata.type === 'uxto') {
-        const ethSignature = convertSignature(signature, message);
-        return ethSignature;
-      }
       return signature;
     },
     [connector]

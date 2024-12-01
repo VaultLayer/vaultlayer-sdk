@@ -211,9 +211,7 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           {signPsbtArguments && signPsbtArguments.details && (
             <div className={styles.unsignedMessage}>
               To: {signPsbtArguments?.details?.toAddress} <br />
-              Value: {signPsbtArguments?.details?.satoshis} <br />
-              Fee: {signPsbtArguments?.details?.fee} <br />
-              Total: {signPsbtArguments?.details?.total} <br />
+              Value: {signPsbtArguments?.details?.satoshis} sats
             </div>
           )}
           {switchNetworkArguments && switchNetworkArguments.network && (
@@ -222,10 +220,13 @@ const SignModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
           {unsignedMessage && <div className={styles.unsignedMessage}>{unsignedMessage}</div>}
         </div>
 
-        {signPsbtArguments && signPsbtArguments?.details && (
-          <div className={styles.estimatedGas}>{`Estimated gas fee: ${formatEther(signPsbtArguments?.details?.fee)} ${
-            chainInfo?.nativeCurrency.symbol
-          }`}</div>
+        {signPsbtArguments && signPsbtArguments?.details && signPsbtArguments?.details?.fee && (
+          <div className={styles.estimatedGas}>{`Fee: ${signPsbtArguments?.details?.fee / 1e8} BTC`}</div>
+        )}
+        {signPsbtArguments && signPsbtArguments?.details && signPsbtArguments?.details?.total && (
+          <div className={styles.balanceChange} style={{ color: '#ef4444' }}>
+            {`Total: ${signPsbtArguments?.details?.total / 1e8} BTC`}
+          </div>
         )}
 
         <Button onClick={confirmTx} className={styles.signBtn} isLoading={loading} isDisabled={disabled}>

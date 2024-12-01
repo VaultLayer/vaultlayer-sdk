@@ -9,7 +9,6 @@ import {
   pubToAddress,
 } from '@ethereumjs/util';
 import { ethers } from 'ethers';
-import bitcore from 'bitcore-lib';
 import { ECPairFactory } from 'ecpair';
 import ecc from '@bitcoinerlab/secp256k1';
 
@@ -27,40 +26,6 @@ export const pubKeyToEthAddress = (pubKey: string) => {
   console.log('pubKeyToEthAddress uncompressedPub sliced: ', uncompressedPubHex);
   const publicAddress = toChecksumAddress(bytesToHex(publicToAddress(toBytes(`0x${uncompressedPubHex}`), true)));
   console.log('pubKeyToEthAddress publicAddress: ', publicAddress);
-  return address;
-};
-
-/*
-function btcSignatureToEvmSignature(bitcoinSignature: string) {
-    const _bitcoinSignature: any = (bitcore.crypto.Signature as any).fromCompact(Buffer.from(bitcoinSignature, 'base64'));
-    const ethSignature = joinSignature(
-        splitSignature({
-            recoveryParam: _bitcoinSignature.i,
-            r: hexZeroPad('0x' + _bitcoinSignature.r.toString(16), 32),
-            s: hexZeroPad('0x' + _bitcoinSignature.s.toString(16), 32),
-        }),
-    );
-
-    return ethSignature;
-}
-*/
-
-export const convertSignature = (signature: string, message: string) => {
-  const sig = (bitcore.crypto.Signature as any).fromCompact(Buffer.from(signature, 'base64'));
-  const v = BigInt(sig.i + 27);
-  const ethSignature = toRpcSig(v, sig.r.toBuffer(), sig.s.toBuffer());
-  const bitcoinMsg = '\u0018Bitcoin Signed Message:\n' + String(message.length) + message;
-  const address = ethers.utils.recoverAddress(ethers.utils.hashMessage(bitcoinMsg), ethSignature);
-  console.log('convertSignature address: ', address);
-  console.log('convertSignature ethSignature: ', ethSignature);
-  return ethSignature;
-};
-
-export const sigToEthAddress = (message: string, signature: string) => {
-  const bitcoinMsg = '\u0018Bitcoin Signed Message:\n' + String(message.length) + message;
-  const ethSignature = convertSignature(signature, message);
-  const address = ethers.utils.recoverAddress(ethers.utils.hashMessage(bitcoinMsg), ethSignature);
-  console.log('sigToEthAddress address: ', address);
   return address;
 };
 

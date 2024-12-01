@@ -17,6 +17,7 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
     if (smartVault) {
       console.log('smartVault ready');
       setLoading(false);
+      setErrorMessage('');
       try {
         events.emit(EventName.authResult, { result: true });
       } catch (error) {
@@ -59,7 +60,7 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
         message: 'The user rejected the request.',
       },
     });
-
+    setErrorMessage('');
     onClose();
   };
 

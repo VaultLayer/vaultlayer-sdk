@@ -6,7 +6,6 @@ events.setMaxListeners(100);
 
 export const getPendingSignEventAccount = () => {
   return (
-    events.listenerCount(EventName.authResult) +
     events.listenerCount(EventName.psbtSignResult) +
     events.listenerCount(EventName.switchNetworkResult) +
     events.listenerCount(EventName.personalSignResult) +
