@@ -23,6 +23,7 @@ import type { AuthMethod } from '../utils/lit';
 import {
   authenticateWithBtcCat721,
   authenticateWithEthWallet,
+  authenticateWithErc721,
   authenticateWithBtcWallet,
   authenticateWithBtcOrdinal,
   getPKPs,
@@ -34,6 +35,8 @@ import {
   INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
   CAT721_AUTH_METHOD_TYPE,
   CAT721_AUTH_LIT_ACTION_IPFS_CID,
+  ERC721_AUTH_METHOD_TYPE,
+  ERC721_AUTH_LIT_ACTION_IPFS_CID,
 } from '../utils/lit';
 import type { BTCAddress } from '../utils/bitcoinUtils';
 import { getBtcPubkey, getBtcAccounts } from '../utils/bitcoinUtils';
@@ -326,19 +329,18 @@ export const ConnectProvider = ({
           console.log('authWithLSV authenticateWithBtcCat721:', result);
           setAuthMethod(result);
           return result;
-        } else {
-          /*const result: AuthMethod = await authenticateWithEthNFT(
+        } else if (lsvId.startsWith('erc721:')) {
+          const result: AuthMethod = await authenticateWithErc721(
             litNodeClient,
             litAuthClient,
             options.domain,
             address,
-            tokenId,
+            lsvId,
             signMessageEth
           );
-          console.log('authWithNFT eth authMethod:', result);
+          console.log('authWithLSV authenticateWithErc721:', result);
           setAuthMethod(result);
-          return result;*/
-          return undefined;
+          return result;
         }
       } catch (e) {
         setAuthMethod(undefined);
@@ -439,6 +441,27 @@ export const ConnectProvider = ({
             pkpPublicKey: smartVault.publicKey,
             authMethods: [authMethod as any],
             chain: 'ethereum',
+            resourceAbilityRequests: [
+              {
+                resource: new LitPKPResource('*'),
+                ability: LitAbility.PKPSigning,
+              },
+              {
+                resource: new LitActionResource('*'),
+                ability: LitAbility.LitActionExecution,
+              },
+            ],
+          });
+        } else if (authMethod.authMethodType == ERC721_AUTH_METHOD_TYPE) {
+          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+            pkpPublicKey: smartVault.publicKey,
+            litActionIpfsId: ERC721_AUTH_LIT_ACTION_IPFS_CID,
+            jsParams: {
+              accessToken: authMethod.accessToken,
+              network: 'datil',
+              pkpTokenId: smartVault.tokenId,
+              debug: true,
+            },
             resourceAbilityRequests: [
               {
                 resource: new LitPKPResource('*'),

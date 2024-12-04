@@ -23,8 +23,8 @@ export const INSCRIPTION_AUTH_METHOD_TYPE = ethers.utils.keccak256(
 export const INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID = 'QmXEHbZFSUR9GjS9xxncxjbdr67ek3X4HURkmUfdp1q8nR';
 export const CAT721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_CAT721_V0_2'));
 export const CAT721_AUTH_LIT_ACTION_IPFS_CID = 'Qmc4CsPLqErMr96p9a8Lfj9vbyieuwcS8exMDQKbZa2o2q';
-export const NFT_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('NFT_V0'));
-export const NFT_AUTH_LIT_ACTION_IPFS_CID = 'QmdouVTa366pWQHyndMzzerD83imY8GMm8tVAETKMrhLCu';
+export const ERC721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('ERC721_V0_4'));
+export const ERC721_AUTH_LIT_ACTION_IPFS_CID = 'QmTwiw4cePFKV6rCMhxoa4cHf1cJDyxdG4f2Kxuuk4w118';
 
 export interface AuthMethod {
   authMethodType: number | string;
@@ -136,6 +136,56 @@ export async function authenticateWithEthWallet(
 }
 
 /**
+ * Get auth method object by signing a message with an ethereuum wallet that owns a ERC721
+ */
+export async function authenticateWithErc721(
+  litNodeClient: LitNodeClient | undefined,
+  litAuthClient: LitAuthClient | undefined,
+  domain: string,
+  address: string,
+  lsvId: string,
+  signMessage: (message: string) => Promise<string>
+): Promise<AuthMethod> {
+  if (!litNodeClient) {
+    throw new Error('No litNodeClient');
+  }
+  if (!litAuthClient) {
+    throw new Error('No litAuthClient');
+  }
+
+  // Get expiration or default to 24 hours
+  const expiration = process.env.LIT_SESSION_EXPIRATION || new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
+  const siweMsg = {
+    domain: domain,
+    statement: `Sign-in to VaultLayer.xyz - Liquid Staking Vault with lsvId: ${lsvId}`,
+    uri: domain == 'localhost' ? 'http://localhost:3000' : `https://${domain}`,
+    expiration: expiration,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    nonce: litNodeClient.latestBlockhash!,
+  };
+  const toSign = `${domain} wants you to sign in with your Ethereum account:\n${address}\n\n${siweMsg.statement}\n\nURI: ${siweMsg.uri}\nNonce: ${siweMsg.nonce}\nExpiration Time: ${siweMsg.expiration}`;
+
+  const signature = await signMessage(toSign);
+  const authSig = {
+    sig: signature,
+    derivedVia: 'web3.eth.personal.sign',
+    signedMessage: toSign,
+    address: address,
+    chainId: lsvId.split(':')[1],
+    contractAddress: lsvId.split(':')[2],
+    tokenId: lsvId.split(':')[3],
+  };
+  const authMethod = {
+    authMethodType: ERC721_AUTH_METHOD_TYPE,
+    accessToken: JSON.stringify(authSig),
+  };
+
+  return authMethod;
+}
+
+
+/**
  * Get auth method object by signing a message with a Bitcoin wallet
  */
 export async function authenticateWithBtcWallet(
@@ -181,7 +231,7 @@ export async function authenticateWithBtcWallet(
 }
 
 /**
- * Get auth method object by signing a message with a Bitcoin wallet
+ * Get auth method object by signing a message with a Bitcoin wallet that owns an inscription
  */
 export async function authenticateWithBtcOrdinal(
   litNodeClient: LitNodeClient | undefined,
@@ -233,7 +283,7 @@ export async function authenticateWithBtcOrdinal(
 }
 
 /**
- * Get auth method object by signing a message with a Bitcoin wallet
+ * Get auth method object by signing a message with a Bitcoin wallet that owns a Cat721
  */
 export async function authenticateWithBtcCat721(
   litNodeClient: LitNodeClient | undefined,
@@ -480,6 +530,27 @@ export async function signWithLitAction(
       pkpPublicKey: pkpPublicKey,
       authMethods: [authMethod as any],
       chain: 'ethereum',
+      resourceAbilityRequests: [
+        {
+          resource: new LitPKPResource('*'),
+          ability: LitAbility.PKPSigning,
+        },
+        {
+          resource: new LitActionResource('*'),
+          ability: LitAbility.LitActionExecution,
+        },
+      ],
+    });
+  } else if (authMethod.authMethodType == ERC721_AUTH_METHOD_TYPE) {
+    controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
+      pkpPublicKey: pkpPublicKey,
+      litActionIpfsId: ERC721_AUTH_LIT_ACTION_IPFS_CID,
+      jsParams: {
+        accessToken: authMethod.accessToken,
+        network: 'datil',
+        pkpTokenId: tokenId,
+        debug: true,
+      },
       resourceAbilityRequests: [
         {
           resource: new LitPKPResource('*'),

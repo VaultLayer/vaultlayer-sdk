@@ -355,7 +355,7 @@ export default function Home() {
                 <Button color="secondary" onClick={onAuthVaultWithWallet}>
                   Auth with Wallet
                 </Button>
-                <Input label="Inscription Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
+                <Input label="LSV Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
                 <Button color="secondary" onClick={onAuthVaultWithLSV}>
                   Auth with LSV
                 </Button>
@@ -392,6 +392,10 @@ export default function Home() {
               <>
                 <Button color="secondary" onClick={onAuthVaultWithWallet}>
                   Auth with Wallet
+                </Button>
+                <Input label="LSV Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
+                <Button color="secondary" onClick={onAuthVaultWithLSV}>
+                  Auth with LSV
                 </Button>
 
                 <Button color="primary" onClick={onGetNetwork}>
