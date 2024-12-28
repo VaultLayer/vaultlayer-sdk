@@ -11,7 +11,7 @@ export class XverseConnector extends BaseConnector {
   }
   readonly metadata: WalletMetadata = {
     id: 'xverse',
-    type: 'uxto',
+    type: 'utxo',
     name: 'Xverse Wallet',
     icon,
     downloadUrl: 'https://www.xverse.app',

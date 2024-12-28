@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useConnectProvider } from '../context';
 
 export const useConnector = () => {
-  const { connectors, setConnectorId } = useConnectProvider();
+  const { connectors, connectorId, setConnectorId } = useConnectProvider();
 
   const connect = useCallback(
     async (connectorId: string) => {
@@ -19,5 +19,5 @@ export const useConnector = () => {
     [connectors, setConnectorId]
   );
 
-  return { connectors, connect };
+  return { connectors, connect, connectorId };
 };

@@ -350,7 +350,7 @@ export default function Home() {
             <div className="overflow-hidden text-ellipsis whitespace-nowrap">Type: {connector.metadata.type}</div>
             <div className="overflow-hidden text-ellipsis whitespace-nowrap">Addresses: {accounts.join(', ')}</div>
 
-            {connector.metadata.type === 'uxto' && (
+            {connector.metadata.type === 'utxo' && (
               <>
                 <Button color="secondary" onClick={onAuthVaultWithWallet}>
                   Auth with Wallet

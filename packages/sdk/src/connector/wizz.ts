@@ -5,7 +5,7 @@ import { InjectedConnector } from './injected';
 export class WizzConnector extends InjectedConnector {
   readonly metadata: WalletMetadata = {
     id: 'wizz',
-    type: 'uxto',
+    type: 'utxo',
     name: 'Wizz Wallet',
     icon,
     downloadUrl: 'https://wizzwallet.io',

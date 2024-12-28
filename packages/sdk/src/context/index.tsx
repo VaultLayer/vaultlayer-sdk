@@ -178,8 +178,6 @@ export const ConnectProvider = ({
         console.log('get accounts error', e);
         setAccounts([]);
       });
-    } else {
-      setAccounts([]);
     }
   }, [connector, autoConnect]);
 
@@ -263,7 +261,7 @@ export const ConnectProvider = ({
         console.log('authWithWallet start');
         console.log('connector type:', connector?.metadata.type);
         events.emit(EventName.startAuth, { address: accounts[0] });
-        if (connector?.metadata.type === 'uxto') {
+        if (connector?.metadata.type === 'utxo') {
           const result: AuthMethod = await authenticateWithBtcWallet(
             litNodeClient,
             litAuthClient,
@@ -271,7 +269,7 @@ export const ConnectProvider = ({
             accounts[0],
             signMessageBtc
           );
-          console.log('authWithEthWallet uxto authMethod:', result);
+          console.log('authWithEthWallet utxo authMethod:', result);
           setAuthMethod(result);
           return result;
         } else {

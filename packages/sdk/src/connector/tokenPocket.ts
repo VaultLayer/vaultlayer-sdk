@@ -5,7 +5,7 @@ import { InjectedConnector } from './injected';
 export class TokenPocketConnector extends InjectedConnector {
   readonly metadata: WalletMetadata = {
     id: 'tokenpocket',
-    type: 'uxto',
+    type: 'utxo',
     name: 'TokenPocket',
     icon,
     downloadUrl: 'https://www.tokenpocket.pro/en/download/app',

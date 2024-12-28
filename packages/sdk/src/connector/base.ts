@@ -1,6 +1,6 @@
 export interface WalletMetadata {
   id: string;
-  type: 'uxto' | 'eth';
+  type: 'utxo' | 'eth';
   name: string;
   icon: string | any;
   downloadUrl: string;

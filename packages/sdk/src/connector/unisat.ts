@@ -5,7 +5,7 @@ import { InjectedConnector } from './injected';
 export class UnisatConnector extends InjectedConnector {
   readonly metadata: WalletMetadata = {
     id: 'unisat',
-    type: 'uxto',
+    type: 'utxo',
     name: 'Unisat Wallet',
     icon,
     downloadUrl: 'https://unisat.io',

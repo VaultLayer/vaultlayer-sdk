@@ -5,7 +5,7 @@ import { InjectedConnector } from './injected';
 export class BybitConnector extends InjectedConnector {
   readonly metadata: WalletMetadata = {
     id: 'bybit',
-    type: 'uxto',
+    type: 'utxo',
     name: 'Bybit Wallet',
     icon,
     downloadUrl: 'https://www.bybit.com/download/',

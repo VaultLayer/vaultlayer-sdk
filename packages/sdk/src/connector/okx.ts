@@ -5,7 +5,7 @@ import { InjectedConnector } from './injected';
 export class OKXConnector extends InjectedConnector {
   readonly metadata: WalletMetadata = {
     id: 'okx',
-    type: 'uxto',
+    type: 'utxo',
     name: 'OKX Wallet',
     icon,
     downloadUrl: 'https://www.okx.com/download',
