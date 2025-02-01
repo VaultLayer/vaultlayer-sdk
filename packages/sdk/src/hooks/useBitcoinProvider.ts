@@ -36,11 +36,11 @@ export const useBitcoinProvider = () => {
         }
       }
 
-      const utxos = await getUtxos(fromAddress);
+      const utxos = await getUtxos(fromAddress, options.bitcoinRpc);
       console.log('sendBitcoin utxosResponse:', utxos);
       let feeRateBytes = 1;
       if (options.fee) {
-        feeRateBytes = await getNetworkFee(options.fee);
+        feeRateBytes = await getNetworkFee(options.fee, options.bitcoinRpc);
       } else if (options.feeRate) {
         feeRateBytes = options.feeRate;
       }
@@ -56,7 +56,7 @@ export const useBitcoinProvider = () => {
         const signedPstb = await signPsbt(psbt);
         signedPstb.finalizeAllInputs();
         const txHex = signedPstb.extractTransaction().toHex();
-        return await pushTx(txHex);
+        return await pushTx(txHex, options.bitcoinRpc);
       }
 
       const psbtSignArguments = {
@@ -81,9 +81,9 @@ export const useBitcoinProvider = () => {
             result.finalizeAllInputs();
             console.log('signPsbt Tx:', result.extractTransaction().toHex());
             const txHex = result.extractTransaction().toHex();
-            const txReceipt = await pushTx(txHex);
+            const txReceipt = await pushTx(txHex, options.bitcoinRpc);
             resolve(txReceipt);
-          } else {
+          } else {options.bitcoinRpc
             reject(error);
           }
         });
@@ -160,12 +160,12 @@ export const useBitcoinProvider = () => {
    * @returns A promise that resolves to the network fees.
    */
   const getNetworkFee = useCallback(
-    async (fee: string) => {
+    async (fee: string, bitcoinRpc?: string) => {
       const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
       const provider = new BitcoinRPC({
         network,
-        bitcoinRpc: 'mempool',
+        bitcoinRpc: bitcoinRpc ? bitcoinRpc : 'mempool',
       });
       const res = await provider.getFeeRate(fee);
       console.log('feeRate:', res);
@@ -179,16 +179,19 @@ export const useBitcoinProvider = () => {
    * Retrieves the network fees.
    * @returns A promise that resolves to the network fees.
    */
-  const getNetworkFees = useCallback(async () => {
-    const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+  const getNetworkFees = useCallback(
+    async (bitcoinRpc?: string) => {
+      const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
-    const provider = new BitcoinRPC({
-      network,
-      bitcoinRpc: 'mempool',
-    });
-    const res = await provider.getFeeRates();
-    return res;
-  }, [btcNetwork]);
+      const provider = new BitcoinRPC({
+        network,
+        bitcoinRpc: bitcoinRpc ? bitcoinRpc : 'mempool',
+      });
+      const res = await provider.getFeeRates();
+      return res;
+    },
+    [btcNetwork]
+  );
 
   /**
    * Retrieves the unspent transaction outputs (UTXOs) for a given address and amount.
@@ -200,9 +203,9 @@ export const useBitcoinProvider = () => {
    * @returns A promise that resolves to an array of UTXOs.
    */
   const getUtxos = useCallback(
-    async (address: string, amount?: number) => {
+    async (address: string, bitcoinRpc?: string) => {
       if (smartVault) {
-        const res = await getAllUtxos(address, btcNetwork, smartVault.btcPubKey, 'mempool');
+        const res = await getAllUtxos(address, btcNetwork, smartVault.btcPubKey, bitcoinRpc ? bitcoinRpc : 'mempool');
         console.log('getUtxos res:', res);
         return res;
       } else {
@@ -218,12 +221,12 @@ export const useBitcoinProvider = () => {
    * @returns A promise that resolves to a string representing the transaction ID.
    */
   const pushTx = useCallback(
-    async (txHex: string) => {
+    async (txHex: string, bitcoinRpc?: string) => {
       const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
       const provider = new BitcoinRPC({
         network,
-        bitcoinRpc: 'mempool',
+        bitcoinRpc: bitcoinRpc ? bitcoinRpc : 'mempool',
       });
       const res = await provider.broadcast(txHex);
       console.log('pushTx broadcast res:', res);

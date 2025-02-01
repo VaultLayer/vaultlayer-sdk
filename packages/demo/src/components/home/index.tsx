@@ -216,12 +216,24 @@ export default function Home() {
     try {
       const txId = await btcProvider.sendBitcoin(btcProvider.btcAccounts[0].address, address, Number(satoshis), {
         fee: 'slow',
-        bitcoinRpc: 'mempool',
+        bitcoinRpc: 'https://mempool.space/testnet4/api',
       });
       toast.success(txId);
     } catch (error: any) {
       toast.error(error.message || 'send bitcoin error');
       console.log('🚀 ~ onSendBitcoin ~ error:', error);
+    }
+  };
+
+  const onSignBtcMessage = async () => {
+    if (!message) {
+      return;
+    }
+    try {
+      const sig = await btcProvider.signMessage(message);
+      toast.success(sig);
+    } catch (error: any) {
+      toast.error(error.message || 'sign message error');
     }
   };
 
@@ -456,7 +468,11 @@ export default function Home() {
         <Button color="primary" onClick={onSwitchVaultNetwork}>
           Change Network
         </Button>
-
+        <Divider />
+                <Input label="Message" value={message} onValueChange={setMessage}></Input>
+                <Button color="primary" onClick={onSignBtcMessage}>
+                  Sign Message
+                </Button>
         <Divider />
         <Input label="Address" value={address} onValueChange={setAddress}></Input>
         <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
