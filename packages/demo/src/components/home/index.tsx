@@ -1,5 +1,5 @@
 'use client';
-
+import { ethers } from 'ethers';
 import addIcon from '@/assets/add.svg';
 import bitcoinIcon from '@/assets/bitcoin.png';
 import infoIcon from '@/assets/info.svg';
@@ -52,6 +52,7 @@ export default function Home() {
   );
   const [address, setAddress] = useState<string>();
   const [satoshis, setSatoshis] = useState<string>('1');
+  const [amount, setAmount] = useState<string>('1');
   const { connectors, connect } = useConnector();
   const [directConnectors, setDirectConnectors] = useState<BaseConnector[]>();
 
@@ -216,7 +217,7 @@ export default function Home() {
     try {
       const txId = await btcProvider.sendBitcoin(btcProvider.btcAccounts[0].address, address, Number(satoshis), {
         fee: 'slow',
-        bitcoinRpc: 'https://mempool.space/testnet4/api',
+        bitcoinRpc: 'mempool',
       });
       toast.success(txId);
     } catch (error: any) {
@@ -230,19 +231,83 @@ export default function Home() {
       return;
     }
     try {
-      const sig = await btcProvider.signMessage(message);
-      toast.success(sig);
+      //const sig = await btcProvider.signMessage(message);
+      //toast.success(sig);
     } catch (error: any) {
       toast.error(error.message || 'sign message error');
     }
   };
 
+  const onSendVaultEthereum = async () => {
+    if (!address) {
+      toast.error('Please enter the address');
+      return;
+    }
+    if (!amount) {
+      toast.error('Please enter the amount');
+      return;
+    }
+    if(!smartVault){
+      toast.error('No smart vault');
+      return;
+    }
+
+    const rpcUrl = 'https://rpc.coredao.org';
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+    try {
+      // Fetch current nonce
+      const nonce = await provider.getTransactionCount(smartVault.ethAddress, 'latest');
+      console.log('nonce:', nonce.toString());
+      const network = await provider.getNetwork();
+      console.log('network:', network.toString());
+
+      // Fetch gas price
+      const gasPrice = await provider.getGasPrice();
+      console.log('Gas Price (wei):', gasPrice.toString());
+
+      // Estimate gas limit
+      const estimatedGasLimit = await provider.estimateGas({
+        to: address,
+        value: ethers.utils.parseEther(amount),
+      });
+
+      // Construct transaction
+      const tx = {
+        nonce,
+        to: address,
+        value: ethers.utils.parseEther(amount),
+        gasLimit: estimatedGasLimit,
+        gasPrice,
+        chainId: (await provider.getNetwork()).chainId,
+      };
+
+      // Sign and send the transaction
+      const signedTx = await ethProvider?.vaultEthWallet?.signTransaction(tx);
+      console.log('Signed Transaction:', signedTx);
+      if (signedTx){
+        // Broadcast the transaction
+        const txResponse = await provider.sendTransaction(signedTx);
+        console.log('Transaction Hash:', txResponse.hash);
+
+        // Wait for confirmation
+        const receipt = await txResponse.wait();
+        console.log('Transaction confirmed in block:', receipt.blockNumber);
+        console.log('Gas Used:', receipt.gasUsed.toString());
+        toast.success(receipt.transactionHash);
+      } else {
+        throw new Error ('Error signing tx');
+      }
+      
+    } catch (error: any) {
+      toast.error(error.message || 'onSendVaultEthereum error');
+      console.log('🚀 ~ onSendVaultEthereum ~ error:', error);
+    }
+  };
+
   const { run: onPersonalSign, loading: personalSignLoading } = useRequest(
     async () => {
-      const result = await ethProvider?.vaultEthClient?.signMessage({
-        account: smartVault?.ethAddress as Hex,
-        message: personalSignMessage,
-      });
+      const result = await ethProvider?.vaultEthWallet?.signMessage(personalSignMessage);
       return result;
     },
     {
@@ -508,7 +573,12 @@ export default function Home() {
         >
           Sign Typed Data
         </Button>
-
+        <Divider />
+        <Input label="Address" value={address} onValueChange={setAddress}></Input>
+        <Input label="ETH" value={amount} onValueChange={setAmount} inputMode="numeric"></Input>
+        <Button color="primary" onClick={onSendVaultEthereum}>
+          Send Ethereum
+        </Button>
         <Divider className="my-4"></Divider>
 
         <Input label="WalletConnect Session" value={walletConnectUri} onValueChange={setWalletConnectUri}></Input>

@@ -124,6 +124,8 @@ export const getAllUtxos = async (
   btcPubKey: string,
   bitcoinRpc: string
 ): Promise<any[]> => {
+  console.log('getAllUtxos btcNetwork:', btcNetwork);
+  console.log('getAllUtxos bitcoinRpc:', bitcoinRpc);
   const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
 
   const provider = new BitcoinRPC({
@@ -238,12 +240,14 @@ export const getAvailableUtxos = async (account: string, btcNetwork: 'testnet' |
 
 // feeRate: satoshis per byte
 export const prepareTransaction = (
+  btcNetwork: 'testnet' | 'livenet',
   utxos: UTXO[],
   recipientAddress: string,
   amount: number,
   changeAddress: string,
   feeRate: number
 ): any => {
+  const network = btcNetwork == 'livenet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
   const targets = [
     {
       address: recipientAddress,
@@ -263,7 +267,7 @@ export const prepareTransaction = (
   console.log('prepareTransaction inputs: ', inputs);
   console.log('prepareTransaction outputs: ', outputs);
 
-  const psbt = new Psbt({ network: networks.testnet });
+  const psbt = new Psbt({ network: network });
 
   inputs.forEach((input: { txid: any; vout: any; witnessUtxo: any }) =>
     psbt.addInput({

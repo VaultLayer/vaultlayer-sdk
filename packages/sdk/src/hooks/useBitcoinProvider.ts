@@ -28,6 +28,8 @@ export const useBitcoinProvider = () => {
         throw new Error('The vault signer is not initialized.');
       }
 
+      console.log('sendBitcoin btcNetwork:', btcNetwork);
+
       const showConfirmModal = !options?.forceHideConfirmModal && !txConfirm.isNotRemind();
 
       if (showConfirmModal) {
@@ -35,28 +37,29 @@ export const useBitcoinProvider = () => {
           throw new Error('Operation failed, there is a transaction being processed');
         }
       }
+      const bitcoinRpc = options.bitcoinRpc ? options.bitcoinRpc : 'mempool';
 
-      const utxos = await getUtxos(fromAddress, options.bitcoinRpc);
+      const utxos = await getUtxos(fromAddress, bitcoinRpc);
       console.log('sendBitcoin utxosResponse:', utxos);
       let feeRateBytes = 1;
       if (options.fee) {
-        feeRateBytes = await getNetworkFee(options.fee, options.bitcoinRpc);
+        feeRateBytes = await getNetworkFee(options.fee, bitcoinRpc);
       } else if (options.feeRate) {
         feeRateBytes = options.feeRate;
       }
 
       // 2) prepare transaction
-      const { psbt, fee } = prepareTransaction(utxos, toAddress, satoshis, fromAddress, feeRateBytes);
+      const { psbt, fee } = prepareTransaction(btcNetwork, utxos, toAddress, satoshis, fromAddress, feeRateBytes);
       console.log('sendBitcoin pstb:', psbt);
       if (!psbt) {
-        throw new Error('Could not prepare Psbt');
+        throw new Error(`Could not prepare Psbt: btcNetwork: ${btcNetwork}`);
       }
 
       if (!showConfirmModal) {
         const signedPstb = await signPsbt(psbt);
         signedPstb.finalizeAllInputs();
         const txHex = signedPstb.extractTransaction().toHex();
-        return await pushTx(txHex, options.bitcoinRpc);
+        return await pushTx(txHex, bitcoinRpc);
       }
 
       const psbtSignArguments = {
@@ -81,15 +84,15 @@ export const useBitcoinProvider = () => {
             result.finalizeAllInputs();
             console.log('signPsbt Tx:', result.extractTransaction().toHex());
             const txHex = result.extractTransaction().toHex();
-            const txReceipt = await pushTx(txHex, options.bitcoinRpc);
+            const txReceipt = await pushTx(txHex, bitcoinRpc);
             resolve(txReceipt);
-          } else {options.bitcoinRpc
+          } else {
             reject(error);
           }
         });
       });
     },
-    [smartVault, vaultBtcSigner]
+    [btcNetwork, smartVault, vaultBtcSigner]
   );
 
   /**
@@ -152,7 +155,7 @@ export const useBitcoinProvider = () => {
         });
       });
     },
-    [vaultBtcSigner]
+    [btcNetwork, vaultBtcSigner]
   );
 
   /**
@@ -205,6 +208,7 @@ export const useBitcoinProvider = () => {
   const getUtxos = useCallback(
     async (address: string, bitcoinRpc?: string) => {
       if (smartVault) {
+        console.log('getUtxos btcNetwork:', btcNetwork);
         const res = await getAllUtxos(address, btcNetwork, smartVault.btcPubKey, bitcoinRpc ? bitcoinRpc : 'mempool');
         console.log('getUtxos res:', res);
         return res;
@@ -269,7 +273,7 @@ export const useBitcoinProvider = () => {
         });
       }
     },
-    [smartVault]
+    [btcNetwork, smartVault]
   );
 
   const getNetwork = useCallback(async () => {
@@ -278,7 +282,7 @@ export const useBitcoinProvider = () => {
 
   const getAccounts = useCallback(async () => {
     return btcAccounts;
-  }, [btcAccounts]);
+  }, [btcNetwork, btcAccounts]);
 
   return {
     smartVault,
