@@ -1,29 +1,18 @@
 import { useCallback } from 'react';
-import { useConnectProvider, Vault } from '../context';
+import { useConnectProvider } from '../context';
 
 export const useVaultProvider = () => {
-  const { smartVault, authMethod, vaults, getVaults, authWithWallet, authWithLSV, disconnectVault } =
+  const { smartVault, authMethod, vaults, getVaults, authWithWallet, getVaultById, disconnectVault, executeVaultTool } =
     useConnectProvider();
-
-  // TODO
-  const addAuthMethod = useCallback(
-    async (authMethod: any) => {
-      if (!smartVault) {
-        throw new Error('smartVault not connected!');
-      }
-      return true;
-    },
-    [smartVault]
-  );
 
   return {
     smartVault,
     authMethod,
     vaults,
     getVaults,
-    addAuthMethod,
     authWithWallet,
-    authWithLSV,
+    getVaultById,
+    executeVaultTool,
     disconnectVault,
   };
 };

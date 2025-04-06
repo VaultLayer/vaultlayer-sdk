@@ -8,33 +8,25 @@ import { EventName } from '../types/eventName';
 import events from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
-import type { SignerAsync } from 'bitcoinjs-lib';
-import { LitAuthClient } from '@lit-protocol/lit-auth-client';
+import { address, type SignerAsync } from 'bitcoinjs-lib';
 import { LitNodeClient } from '@lit-protocol/lit-node-client';
 import type { LitNodeClientConfig, IRelayPKP, LIT_NETWORKS_KEYS } from '@lit-protocol/types';
 import { AuthCallbackParams } from '@lit-protocol/types';
-import { AuthMethodType } from '@lit-protocol/constants';
-import { LitAbility, LitPKPResource, LitActionResource } from '@lit-protocol/auth-helpers';
+import { createSiweMessage, generateAuthSig, LitActionResource, LitPKPResource } from '@lit-protocol/auth-helpers';
+import { LIT_RPC, LIT_ABILITY, AUTH_METHOD_TYPE, PROVIDER_TYPE } from '@lit-protocol/constants';
 import { PKPEthersWallet } from '@lit-protocol/pkp-ethers';
+
 import { createWalletClient, custom, type WalletClient } from 'viem';
 import { WalletClientProvider } from '../ethSigner/walletClientProvider';
 import { PKPWalletConnect } from '../utils/walletconnect';
 import type { AuthMethod } from '../utils/lit';
 import {
-  authenticateWithBtcCat721,
   authenticateWithEthWallet,
-  authenticateWithErc721,
   authenticateWithBtcWallet,
-  authenticateWithBtcOrdinal,
   getPKPs,
   mintPKP,
-  signWithLitAction,
   BITCOIN_AUTH_METHOD_TYPE,
   BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
-  INSCRIPTION_AUTH_METHOD_TYPE,
-  INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
-  CAT721_AUTH_METHOD_TYPE,
-  CAT721_AUTH_LIT_ACTION_IPFS_CID,
   ERC721_AUTH_METHOD_TYPE,
   ERC721_AUTH_LIT_ACTION_IPFS_CID,
 } from '../utils/lit';
@@ -45,6 +37,7 @@ import ModalView from '../components/modalView';
 
 export interface Vault extends IRelayPKP {
   btcPubKey: string;
+  authMethod: AuthMethod;
   signer?: any;
 }
 
@@ -71,15 +64,15 @@ interface GlobalState {
   signMessageBtc: (message: string) => Promise<string>;
   signMessageEth: (message: string) => Promise<string>;
   authWithWallet: (accounts: string[]) => Promise<AuthMethod | undefined>;
-  authWithLSV: (address: string, inscriptionId: string) => Promise<AuthMethod | undefined>;
   authMethod?: AuthMethod;
   smartVault?: Vault;
   vaults?: Vault[];
-  getVaults: (litAuthClient: LitAuthClient, authMethod: AuthMethod) => Promise<Vault[] | []>;
-  createVault: (litAuthClient: LitAuthClient, authMethod: AuthMethod) => Promise<Vault | undefined>;
+  getVaults: (authMethod: AuthMethod) => Promise<Vault[] | []>;
+  createVault: (authMethod: AuthMethod) => Promise<Vault | undefined>;
+  getVaultById: (lsvId: string) => Promise<Vault | undefined>;
+  executeVaultTool: (ipfsId: string, params: any) => Promise<any>;
   btcNetwork: 'testnet' | 'livenet';
   btcAccounts: BTCAddress[];
-  vaultBtcSigner?: VaultBtcSigner;
   vaultEthWallet?: VaultEthWallet;
   vaultEthClient?: WalletClient;
   vaultWalletConnect?: any;
@@ -89,12 +82,11 @@ interface GlobalState {
 const ConnectContext = createContext<GlobalState>({} as any);
 
 const LIT_NETWORK = (process.env.LIT_NETWORK as LIT_NETWORKS_KEYS) || ('datil' as LIT_NETWORKS_KEYS);
-const RELAYER_LIT_API = process.env.LIT_API_KEY || 'test-api-key';
 
 const litClientConfig: LitNodeClientConfig = {
   alertWhenUnauthorized: false,
   litNetwork: LIT_NETWORK,
-  debug: false,
+  debug: true,
 };
 
 export const ConnectProvider = ({
@@ -129,7 +121,6 @@ export const ConnectProvider = ({
   const [accounts, setAccounts] = useState<string[]>([]);
 
   const [litNodeClient, setLitNodeClient] = useState<LitNodeClient | undefined>(undefined);
-  const [litAuthClient, setLitAuthClient] = useState<LitAuthClient | undefined>(undefined);
   const [authMethod, setAuthMethod] = useState<AuthMethod | undefined>(undefined);
 
   const [vaults, setVaults] = useState<Vault[]>([]);
@@ -227,21 +218,14 @@ export const ConnectProvider = ({
   );
 
   /*
-   * Initialize LitNodeClient and LitAuthClient
+   * Initialize LitNodeClient
    */
   useEffect(() => {
     const litConnect = async () => {
       const client = new LitNodeClient(litClientConfig);
       console.log('Connecting to lit node');
       await client.connect();
-      const authClient = new LitAuthClient({
-        litRelayConfig: {
-          relayApiKey: RELAYER_LIT_API,
-        },
-        litNodeClient: client,
-      });
       setLitNodeClient(client);
-      setLitAuthClient(authClient);
     };
 
     if (!litNodeClient || !litNodeClient?.ready) {
@@ -252,120 +236,16 @@ export const ConnectProvider = ({
   // Unmount
   useEffect(() => () => disconnect(), []);
 
-  /*
-   * Initialize authMethod
-   */
-  const authWithWallet = useCallback(
-    async (accounts: string[]): Promise<AuthMethod | undefined> => {
-      try {
-        console.log('authWithWallet start');
-        console.log('connector type:', connector?.metadata.type);
-        events.emit(EventName.startAuth, { address: accounts[0] });
-        if (connector?.metadata.type === 'utxo') {
-          const result: AuthMethod = await authenticateWithBtcWallet(
-            litNodeClient,
-            litAuthClient,
-            options.domain,
-            accounts[0],
-            signMessageBtc
-          );
-          console.log('authWithEthWallet utxo authMethod:', result);
-          setAuthMethod(result);
-          return result;
-        } else {
-          const result: AuthMethod = await authenticateWithEthWallet(
-            litNodeClient,
-            litAuthClient,
-            options.domain,
-            accounts[0],
-            signMessageEth
-          );
-          console.log('authWithEthWallet eth authMethod:', result);
-          setAuthMethod(result);
-          return result;
-        }
-      } catch (e) {
-        setAuthMethod(undefined);
-        console.error('authWithEthWallet error', e);
-      }
-    },
-    [litAuthClient, litNodeClient, connector, setAuthMethod]
-  );
-
-  /*
-   * Initialize authMethod
-   */
-  const authWithLSV = useCallback(
-    async (address: string, lsvId: string): Promise<AuthMethod | undefined> => {
-      try {
-        console.log('authWithNFT start');
-        localStorage.removeItem('lit-session-key');
-        localStorage.removeItem('lit-wallet-sig');
-        console.log('connector type:', connector?.metadata.type);
-        events.emit(EventName.startAuth, { address: accounts[0], lsvId: lsvId });
-        if (lsvId.startsWith('inscriptionId:')) {
-          const result: AuthMethod = await authenticateWithBtcOrdinal(
-            litNodeClient,
-            litAuthClient,
-            options.domain,
-            address,
-            lsvId,
-            signMessageBtc
-          );
-          console.log('authWithLSV authenticateWithBtcOrdinal:', result);
-          setAuthMethod(result);
-          return result;
-        } else if (lsvId.startsWith('cat721:')) {
-          const result: AuthMethod = await authenticateWithBtcCat721(
-            litNodeClient,
-            litAuthClient,
-            options.domain,
-            address,
-            lsvId,
-            signMessageBtc
-          );
-          console.log('authWithLSV authenticateWithBtcCat721:', result);
-          setAuthMethod(result);
-          return result;
-        } else if (lsvId.startsWith('erc721:')) {
-          const result: AuthMethod = await authenticateWithErc721(
-            litNodeClient,
-            litAuthClient,
-            options.domain,
-            address,
-            lsvId,
-            signMessageEth
-          );
-          console.log('authWithLSV authenticateWithErc721:', result);
-          setAuthMethod(result);
-          return result;
-        }
-      } catch (e) {
-        setAuthMethod(undefined);
-        console.error('authWithNFT error', e);
-      }
-    },
-    [litAuthClient, litNodeClient, connector, setAuthMethod]
-  );
-
-  useEffect(() => {
-    if (accounts.length > 0 && litNodeClient?.ready && !authMethod && options.authOnConnect) {
-      console.log('calling authWithWallet');
-      authWithWallet(accounts);
-    }
-  }, [accounts, options]);
-
   /**
    * Mint a new PKP for current auth method
    */
   const createVault = useCallback(
-    async (litAuthClient: LitAuthClient, authMethod: AuthMethod): Promise<Vault | undefined> => {
+    async (authMethod: AuthMethod): Promise<Vault | undefined> => {
       try {
-        const newPKP = await mintPKP(litAuthClient, authMethod, options.apiUrl);
+        const newPKP = await mintPKP(authMethod, options.apiUrl);
         console.log('createVault pkp: ', newPKP);
         const newVault = {
           ...newPKP,
-          btcPubKey: getBtcPubkey(newPKP.publicKey),
         };
         setVaults((prev) => [...prev, newVault]);
         setSmartVault(newVault);
@@ -375,33 +255,26 @@ export const ConnectProvider = ({
         throw new Error('createVault failed');
       }
     },
-    [litAuthClient, setSmartVault, setVaults]
+    [options, setSmartVault, setVaults]
   );
 
   /**
    * Fetch Vaults (PKPs) tied to given auth method
    */
   const getVaults = useCallback(
-    async (litAuthClient: LitAuthClient, authMethod: AuthMethod): Promise<Vault[]> => {
+    async (authMethod: AuthMethod): Promise<Vault[]> => {
       try {
-        //TODO const network = ?????
-        const testnet = true;
         // Fetch PKPs tied to given auth method
         const myPKPs = await getPKPs(options.apiUrl, authMethod);
         console.log('myPKPs response: ', myPKPs);
         if (!Array.isArray(myPKPs)) throw new Error(myPKPs);
         if (myPKPs.length > 0) {
-          //map
-          const myVaults = myPKPs.map((v) => ({
-            ...v,
-            btcPubKey: getBtcPubkey(v.publicKey),
-          }));
-          console.log('getVaults myVaults: ', myVaults);
-          setVaults(myVaults);
-          setSmartVault(myVaults[0]);
-          return myVaults;
+          console.log('getVaults myVaults: ', myPKPs);
+          setVaults(myPKPs);
+          setSmartVault(myPKPs[0]);
+          return myPKPs;
         } else {
-          const newVault = await createVault(litAuthClient, authMethod);
+          const newVault = await createVault(authMethod);
           if (newVault) return [newVault];
           else return [];
         }
@@ -411,67 +284,54 @@ export const ConnectProvider = ({
         return [];
       }
     },
-    [litAuthClient, createVault, setVaults, setSmartVault]
+    [options, createVault, setVaults, setSmartVault]
   );
 
-  /*
-   * set smartValut
-   */
-  useEffect(() => {
-    if (authMethod && litAuthClient && vaults.length == 0) {
-      console.log('calling getVaults');
-      getVaults(litAuthClient, authMethod);
-    } else {
-      setSmartVault(undefined);
-    }
-  }, [litAuthClient, authMethod, getVaults]);
+  const getVaultById = useCallback(
+    async (lsvId: string): Promise<Vault | undefined> => {
+      if (accounts.length > 0) {
+        try {
+          const authSig = {
+            address: accounts[0],
+            chain: lsvId.split(':')[1],
+            contractAddress: lsvId.split(':')[2],
+            erc721TokenId: lsvId.split(':')[3],
+          };
+          const erc72AuthMethod = {
+            authMethodType: ERC721_AUTH_METHOD_TYPE,
+            accessToken: JSON.stringify(authSig),
+          };
+          // Fetch PKPs tied to given auth method
+          const myPKPs = await getPKPs(options.apiUrl, erc72AuthMethod);
+          console.log('myPKPs response: ', myPKPs);
+          if (!Array.isArray(myPKPs)) throw new Error(myPKPs);
+          if (myPKPs.length > 0) {
+            console.log('getVaultById myVaults: ', myPKPs);
+            setVaults(myPKPs);
+            setSmartVault(myPKPs[0]);
+            return myPKPs[0];
+          } else {
+            const newVault = await createVault(erc72AuthMethod);
+            return newVault;
+          }
+        } catch (e: any) {
+          console.error('getVaultById error', e);
+          events.emit(EventName.authResult, `Error getting/creating vault ${e}`);
+        }
+      }
+    },
+    [accounts, options.apiUrl, createVault]
+  );
 
   /**
    * Create ETH vaultEthClient
    */
-  const connectVaultEthClient = useCallback(async () => {
+  const createVaultEthClient = useCallback(async () => {
     if (smartVault && litNodeClient && authMethod && !vaultEthWallet) {
-      console.log('connectVaultEthClient start');
+      console.log('createVaultEthClient start');
       try {
         let controllerSessionSigs;
-        if (authMethod.authMethodType == AuthMethodType.EthWallet) {
-          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
-            pkpPublicKey: smartVault.publicKey,
-            authMethods: [authMethod as any],
-            chain: 'ethereum',
-            resourceAbilityRequests: [
-              {
-                resource: new LitPKPResource('*'),
-                ability: LitAbility.PKPSigning,
-              },
-              {
-                resource: new LitActionResource('*'),
-                ability: LitAbility.LitActionExecution,
-              },
-            ],
-          });
-        } else if (authMethod.authMethodType == ERC721_AUTH_METHOD_TYPE) {
-          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
-            pkpPublicKey: smartVault.publicKey,
-            litActionIpfsId: ERC721_AUTH_LIT_ACTION_IPFS_CID,
-            jsParams: {
-              accessToken: authMethod.accessToken,
-              network: 'datil',
-              pkpTokenId: smartVault.tokenId,
-              debug: true,
-            },
-            resourceAbilityRequests: [
-              {
-                resource: new LitPKPResource('*'),
-                ability: LitAbility.PKPSigning,
-              },
-              {
-                resource: new LitActionResource('*'),
-                ability: LitAbility.LitActionExecution,
-              },
-            ],
-          });
-        } else if (authMethod.authMethodType == BITCOIN_AUTH_METHOD_TYPE) {
+        if (authMethod.authMethodType == BITCOIN_AUTH_METHOD_TYPE) {
           controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
             pkpPublicKey: smartVault.publicKey,
             litActionIpfsId: BITCOIN_AUTH_LIT_ACTION_IPFS_CID,
@@ -483,82 +343,32 @@ export const ConnectProvider = ({
             resourceAbilityRequests: [
               {
                 resource: new LitPKPResource('*'),
-                ability: LitAbility.PKPSigning,
+                ability: LIT_ABILITY.PKPSigning,
               },
               {
                 resource: new LitActionResource('*'),
-                ability: LitAbility.LitActionExecution,
-              },
-            ],
-          });
-        } else if (authMethod.authMethodType == INSCRIPTION_AUTH_METHOD_TYPE) {
-          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
-            pkpPublicKey: smartVault.publicKey,
-            litActionIpfsId: INSCRIPTION_AUTH_LIT_ACTION_IPFS_CID,
-            jsParams: {
-              accessToken: authMethod.accessToken,
-              network: 'datil',
-              pkpTokenId: smartVault.tokenId,
-              unisatApiKey: options.unisatApiKey,
-              debug: true,
-            },
-            resourceAbilityRequests: [
-              {
-                resource: new LitPKPResource('*'),
-                ability: LitAbility.PKPSigning,
-              },
-              {
-                resource: new LitActionResource('*'),
-                ability: LitAbility.LitActionExecution,
-              },
-            ],
-          });
-        } else if (authMethod.authMethodType == CAT721_AUTH_METHOD_TYPE) {
-          controllerSessionSigs = await litNodeClient.getPkpSessionSigs({
-            pkpPublicKey: smartVault.publicKey,
-            litActionIpfsId: CAT721_AUTH_LIT_ACTION_IPFS_CID,
-            jsParams: {
-              accessToken: authMethod.accessToken,
-              network: 'datil',
-              pkpTokenId: smartVault.tokenId,
-              debug: true,
-            },
-            resourceAbilityRequests: [
-              {
-                resource: new LitPKPResource('*'),
-                ability: LitAbility.PKPSigning,
-              },
-              {
-                resource: new LitActionResource('*'),
-                ability: LitAbility.LitActionExecution,
+                ability: LIT_ABILITY.LitActionExecution,
               },
             ],
           });
         }
-        console.log('connectVaultEthClient controllerSessionSigs', controllerSessionSigs);
+        console.log('createVaultEthClient controllerSessionSigs', controllerSessionSigs);
         const pkpWallet = new PKPEthersWallet({
           controllerSessionSigs,
           litNodeClient,
           pkpPubKey: smartVault.publicKey,
         });
-        await pkpWallet!.init();
-        console.log('connectVaultEthClient pkpWallet:', pkpWallet);
+        await pkpWallet?.init();
+        console.log('createVaultEthClient pkpWallet:', pkpWallet);
         setVaultEthWallet(pkpWallet);
       } catch (e) {
         setVaultEthWallet(undefined);
-        console.error('connectVaultEthClient error', e);
+        console.error('createVaultEthClient error', e);
       }
     } else {
       setVaultEthWallet(undefined);
     }
   }, [authMethod, litNodeClient, smartVault, vaultEthWallet]);
-
-  useEffect(() => {
-    if (smartVault && litNodeClient?.ready && authMethod && !vaultEthWallet) {
-      console.log('calling connectVaultEthClient');
-      connectVaultEthClient();
-    }
-  }, [smartVault, connectVaultEthClient]);
 
   useEffect(() => {
     const vaultEthWallets = async () => {
@@ -574,7 +384,56 @@ export const ConnectProvider = ({
     if (vaultEthWallet?.provider && !vaultEthClient) {
       vaultEthWallets().catch(console.error);
     }
-  }, [vaultEthWallet]);
+  }, [vaultEthClient, vaultEthWallet]);
+
+  /*
+   * Initialize authMethod
+   */
+  const authWithWallet = useCallback(
+    async (accounts: string[]): Promise<AuthMethod | undefined> => {
+      try {
+        console.log('authWithWallet start');
+        console.log('connector type:', connector?.metadata.type);
+        events.emit(EventName.startAuth, { address: accounts[0] });
+        if (connector?.metadata.type === 'utxo') {
+          const result: AuthMethod = await authenticateWithBtcWallet(
+            litNodeClient,
+            options.domain,
+            accounts[0],
+            signMessageBtc
+          );
+          console.log('authWithEthWallet utxo authMethod:', result);
+          //TODO: getSessionsigs from PKP
+          setAuthMethod(result);
+          await getVaults(result);
+          await createVaultEthClient();
+          return result;
+        } else {
+          // getSessionsigs from Eth Wallet and add to AuthMethod
+          const result: AuthMethod = await authenticateWithEthWallet(
+            litNodeClient,
+            options.domain,
+            accounts[0],
+            signMessageEth
+          );
+          console.log('authWithEthWallet eth authMethod:', result);
+          setAuthMethod(result);
+          return result;
+        }
+      } catch (e) {
+        setAuthMethod(undefined);
+        console.error('authWithEthWallet error', e);
+      }
+    },
+    [options, litNodeClient, connector, setAuthMethod, createVaultEthClient, getVaults, signMessageBtc, signMessageEth]
+  );
+
+  useEffect(() => {
+    if (accounts.length > 0 && litNodeClient?.ready && !authMethod && options.authOnConnect) {
+      console.log('calling authWithWallet');
+      authWithWallet(accounts);
+    }
+  }, [accounts, authMethod, authWithWallet, litNodeClient?.ready, options]);
 
   /**
    * Create ETH Vault WalletConnect
@@ -595,14 +454,14 @@ export const ConnectProvider = ({
     } else {
       setVaultWalletConnect(undefined);
     }
-  }, [smartVault, vaultEthWallet, vaultWalletConnect]);
+  }, [options, smartVault, vaultEthWallet, vaultWalletConnect]);
 
   useEffect(() => {
     if (smartVault && litNodeClient?.ready && vaultEthWallet && options.walletConnect && !vaultWalletConnect) {
       console.log('calling connectVaultWalletConnect');
       connectVaultWalletConnect();
     }
-  }, [vaultEthWallet, options, connectVaultWalletConnect]);
+  }, [vaultEthWallet, options, connectVaultWalletConnect, smartVault, litNodeClient, vaultWalletConnect]);
 
   useEffect(() => {
     if (vaultEthClient && vaultWalletConnect) {
@@ -668,40 +527,40 @@ export const ConnectProvider = ({
   }, [smartVault, btcNetwork]);
 
   /*
-   * Create BTC vaultBtcSigner
+   * Excecute Lit Action
+   * @param ipfsId - IPFS ID of the Lit Action
+   * @param params - Parameters to be passed to the Lit Action
+   * @returns - Response from the Lit Action
+   * @throws - Error if the Lit Node Client is not ready or if the smart vault is not connected
    */
-  useEffect(() => {
-    if (smartVault && litNodeClient?.ready && !vaultBtcSigner) {
-      console.log('creating vaultBtcSigner');
-      const signer = {
-        publicKey: Buffer.from(smartVault?.btcPubKey, 'hex'),
-        sign: (hash: Buffer, lowerR: boolean): Promise<Buffer> => {
-          console.log('calling vaultBtcSigner signWithLitAction with hash', hash);
-          return new Promise((resolve, rejects) => {
-            console.log('calling vaultBtcSigner signWithLitAction with authMethod', authMethod);
-            signWithLitAction(
-              litNodeClient,
-              litAuthClient,
-              authMethod,
-              hash,
-              smartVault.publicKey,
-              smartVault.tokenId,
-              options.unisatApiKey
-            )
-              .then(function (sig) {
-                const signatureBuf = Buffer.from((sig as any).r + (sig as any).s, 'hex');
-                resolve(signatureBuf);
-              })
-              .catch(function (reason) {
-                rejects(reason);
-              });
+  const executeVaultTool = useCallback(
+    async (ipfsId: string, toolParams: any): Promise<any> => {
+      console.log('executeVaultTool authMethod', authMethod);
+      if (smartVault && litNodeClient && authMethod && authMethod.sessionSigs) {
+        try {
+          console.log('executeVaultTool ipfsId', ipfsId);
+
+          const { response } = await litNodeClient.executeJs({
+            ipfsId,
+            sessionSigs: authMethod.sessionSigs,
+            jsParams: {
+              params: {
+                ...toolParams,
+                pkpEthAddress: smartVault.ethAddress,
+                authSig: smartVault.authMethod.accessToken,
+              },
+            },
           });
-        },
-      };
-      console.log('vaultBtcSigner:', signer);
-      setVaultBtcSigner(signer);
-    }
-  }, [smartVault, vaultBtcSigner]);
+
+          return response;
+        } catch (e) {
+          console.error('executeVaultTool error', e);
+          process.exit(1);
+        }
+      }
+    },
+    [litNodeClient, authMethod, smartVault]
+  );
 
   const disconnect = useCallback(() => {
     console.log('disconnecting');
@@ -786,13 +645,13 @@ export const ConnectProvider = ({
         signMessageBtc,
         signMessageEth,
         authWithWallet,
-        authWithLSV,
         authMethod,
         smartVault,
         vaults,
         getVaults,
         createVault,
-        vaultBtcSigner,
+        getVaultById,
+        executeVaultTool,
         btcNetwork,
         btcAccounts,
         switchBtcNetwork,

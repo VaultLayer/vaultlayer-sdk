@@ -10,98 +10,11 @@ import { toOutputScript } from 'bitcoinjs-lib/src/address';
 import type { FeeSpeedType } from '../utils/bitcoinRpc';
 import { BitcoinRPC } from '../utils/bitcoinRpc';
 
+const SIGN_PSBT_TOOL_IPFS_CID = 'QmUsPfTQommhSmfmCWaAB8krAdN3ELdArFn1DqEth2kHY3';
+
 export const useBitcoinProvider = () => {
-  const { smartVault, authMethod, vaults, getVaults, vaultBtcSigner, btcNetwork, btcAccounts, switchBtcNetwork } =
+  const { smartVault, authMethod, vaults, getVaults, executeVaultTool, btcNetwork, btcAccounts, switchBtcNetwork } =
     useConnectProvider();
-
-  const sendBitcoin = useCallback(
-    async (
-      fromAddress: string,
-      toAddress: string,
-      satoshis: number,
-      options: { feeRate?: number; fee?: FeeSpeedType | string; bitcoinRpc?: string; forceHideConfirmModal?: boolean }
-    ) => {
-      if (!smartVault) {
-        throw new Error('The smart vault is not initialized.');
-      }
-      if (!vaultBtcSigner) {
-        throw new Error('The vault signer is not initialized.');
-      }
-
-      console.log('sendBitcoin btcNetwork:', btcNetwork);
-
-      const showConfirmModal = !options?.forceHideConfirmModal && !txConfirm.isNotRemind();
-
-      if (showConfirmModal) {
-        if (getPendingSignEventAccount() > 0) {
-          throw new Error('Operation failed, there is a transaction being processed');
-        }
-      }
-      const bitcoinRpc = options.bitcoinRpc ? options.bitcoinRpc : 'mempool';
-
-      const utxos = await getUtxos(fromAddress, bitcoinRpc);
-      console.log('sendBitcoin utxosResponse:', utxos);
-      let feeRateBytes = 1;
-      if (options.fee) {
-        feeRateBytes = await getNetworkFee(options.fee, bitcoinRpc);
-      } else if (options.feeRate) {
-        feeRateBytes = options.feeRate;
-      }
-
-      // 2) prepare transaction
-      const { psbt, fee } = prepareTransaction(btcNetwork, utxos, toAddress, satoshis, fromAddress, feeRateBytes);
-      console.log('sendBitcoin pstb:', psbt);
-      if (!psbt) {
-        throw new Error(`Could not prepare Psbt: btcNetwork: ${btcNetwork}`);
-      }
-
-      if (!showConfirmModal) {
-        const signedPstb = await signPsbt(psbt);
-        signedPstb.finalizeAllInputs();
-        const txHex = signedPstb.extractTransaction().toHex();
-        return await pushTx(txHex, bitcoinRpc);
-      }
-
-      const psbtSignArguments = {
-        pstb: psbt,
-        details: {
-          toAddress,
-          satoshis,
-          fee,
-          network: btcNetwork,
-          total: satoshis + fee,
-        },
-      };
-      return new Promise<string>((resolve, reject) => {
-        //emit events for SingModal confirm
-        events.emit(EventName.psbtSign, psbtSignArguments);
-        events.once(EventName.psbtSignResult, async ({ result, error }) => {
-          if (result) {
-            console.log('Event vaultSignResult received:', result);
-            await result.signAllInputsAsync(vaultBtcSigner);
-            result.validateSignaturesOfAllInputs(validator);
-            console.log('signPsbt signed pstb:', result);
-            result.finalizeAllInputs();
-            console.log('signPsbt Tx:', result.extractTransaction().toHex());
-            const txHex = result.extractTransaction().toHex();
-            const txReceipt = await pushTx(txHex, bitcoinRpc);
-            resolve(txReceipt);
-          } else {
-            reject(error);
-          }
-        });
-      });
-    },
-    [btcNetwork, smartVault, vaultBtcSigner]
-  );
-
-  /**
-   * Signs a message
-   * @param message - The message to sign.
-   * @returns A promise that resolves to the signed message.
-   */
-  //TODO: https://github.com/bitcoinjs/bitcoinjs-message/blob/master/index.js
-  // const signMessage = useCallback()
 
   /**
    * Signs the given PSBT in hex format.
@@ -110,10 +23,6 @@ export const useBitcoinProvider = () => {
    */
   const signPsbt = useCallback(
     async (psbt: bitcoin.Psbt, options?: { forceHideConfirmModal?: boolean; details?: any }) => {
-      if (!vaultBtcSigner) {
-        throw new Error('The vault signer is not initialized.');
-      }
-
       const showConfirmModal = !options?.forceHideConfirmModal && !txConfirm.isNotRemind();
 
       if (showConfirmModal) {
@@ -123,14 +32,14 @@ export const useBitcoinProvider = () => {
       }
 
       if (!showConfirmModal) {
-        // signTransaction with Vault
-        console.log('signPsbt vaultBtcSigner:', vaultBtcSigner);
-        await psbt.signAllInputsAsync(vaultBtcSigner);
-        if (!psbt.validateSignaturesOfAllInputs(validator)) {
-          throw new Error('signature is invalid');
-        }
-        console.log('signPsbt signed pstb:', psbt);
-        return psbt;
+        // sign & push transaction with Vault
+        const txId = await executeVaultTool(SIGN_PSBT_TOOL_IPFS_CID, {
+          // Tool-specific parameters
+          psbtBase64: psbt.toBase64(),
+          btcNetwork: btcNetwork,
+        });
+        console.log('signPsbt txId:', txId);
+        return txId;
       }
 
       const psbtSignArguments = {
@@ -143,19 +52,21 @@ export const useBitcoinProvider = () => {
         events.once(EventName.psbtSignResult, async ({ result, error }) => {
           if (result) {
             console.log('Event vaultSignResult received:', result);
-            await result.signAllInputsAsync(vaultBtcSigner);
-            if (!result.validateSignaturesOfAllInputs(validator)) {
-              throw new Error('signature is invalid');
-            }
-            console.log('signPsbt signed pstb:', result);
-            resolve(result);
+            // signTransaction with Vault
+            const txId = await executeVaultTool(SIGN_PSBT_TOOL_IPFS_CID, {
+              // Tool-specific parameters
+              psbtBase64: result.toBase64(),
+              btcNetwork: btcNetwork,
+            });
+            console.log('signPsbt txId:', txId);
+            resolve(txId);
           } else {
             reject(error);
           }
         });
       });
     },
-    [btcNetwork, vaultBtcSigner]
+    [btcNetwork, executeVaultTool]
   );
 
   /**
@@ -273,7 +184,7 @@ export const useBitcoinProvider = () => {
         });
       }
     },
-    [btcNetwork, smartVault]
+    [smartVault, switchBtcNetwork]
   );
 
   const getNetwork = useCallback(async () => {
@@ -282,7 +193,83 @@ export const useBitcoinProvider = () => {
 
   const getAccounts = useCallback(async () => {
     return btcAccounts;
-  }, [btcNetwork, btcAccounts]);
+  }, [btcAccounts]);
+
+  const sendBitcoin = useCallback(
+    async (
+      fromAddress: string,
+      toAddress: string,
+      satoshis: number,
+      options: { feeRate?: number; fee?: FeeSpeedType | string; bitcoinRpc?: string; forceHideConfirmModal?: boolean }
+    ) => {
+      if (!smartVault) {
+        throw new Error('The smart vault is not initialized.');
+      }
+
+      console.log('sendBitcoin btcNetwork:', btcNetwork);
+
+      const showConfirmModal = !options?.forceHideConfirmModal && !txConfirm.isNotRemind();
+
+      if (showConfirmModal) {
+        if (getPendingSignEventAccount() > 0) {
+          throw new Error('Operation failed, there is a transaction being processed');
+        }
+      }
+      const bitcoinRpc = options.bitcoinRpc ? options.bitcoinRpc : 'mempool';
+
+      const utxos = await getUtxos(fromAddress, bitcoinRpc);
+      console.log('sendBitcoin utxosResponse:', utxos);
+      let feeRateBytes = 1;
+      if (options.fee) {
+        feeRateBytes = await getNetworkFee(options.fee, bitcoinRpc);
+      } else if (options.feeRate) {
+        feeRateBytes = options.feeRate;
+      }
+
+      // 2) prepare transaction
+      const { psbt, fee } = prepareTransaction(btcNetwork, utxos, toAddress, satoshis, fromAddress, feeRateBytes);
+      console.log('sendBitcoin pstb:', psbt);
+      if (!psbt) {
+        throw new Error(`Could not prepare Psbt: btcNetwork: ${btcNetwork}`);
+      }
+
+      if (!showConfirmModal) {
+        const txId = await signPsbt(psbt);
+        return txId;
+      }
+
+      const psbtSignArguments = {
+        pstb: psbt,
+        details: {
+          toAddress,
+          satoshis,
+          fee,
+          network: btcNetwork,
+          total: satoshis + fee,
+        },
+      };
+      return new Promise<string>((resolve, reject) => {
+        //emit events for SingModal confirm
+        events.emit(EventName.psbtSign, psbtSignArguments);
+        events.once(EventName.psbtSignResult, async ({ result, error }) => {
+          if (result) {
+            console.log('Event vaultSignResult received:', result);
+            // signTransaction with Vault
+            const txId = await executeVaultTool(SIGN_PSBT_TOOL_IPFS_CID, {
+              // Tool-specific parameters
+              psbtBase64: result.toBase64(),
+              btcNetwork: btcNetwork,
+            });
+            console.log('signPsbt txId:', txId);
+            resolve(txId);
+          } else {
+            reject(error);
+          }
+        });
+      });
+    },
+    [btcNetwork, executeVaultTool, getNetworkFee, getUtxos, signPsbt, smartVault]
+  );
 
   return {
     smartVault,
@@ -294,7 +281,6 @@ export const useBitcoinProvider = () => {
     switchNetwork,
     btcAccounts,
     getAccounts,
-    vaultBtcSigner,
     signPsbt,
     pushTx,
     sendBitcoin,

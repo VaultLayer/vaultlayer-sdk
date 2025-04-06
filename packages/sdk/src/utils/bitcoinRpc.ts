@@ -27,7 +27,7 @@ export interface Transaction {
 }
 
 export const MempoolRpcUrl = {
-  testnet: 'https://mempool.space/testnet4/api',
+  testnet: 'https://mempool.space/testnet/api',
   mainnet: 'https://mempool.space/api',
 };
 

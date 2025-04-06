@@ -41,11 +41,13 @@ export default function Home() {
   const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } =
     useWalletProvider();
   // Smart Vault accounts:
-  const { smartVault, authWithWallet, authWithLSV } = useVaultProvider();
+  const { smartVault, authWithWallet, getVaultById } = useVaultProvider();
   const ethProvider = useEthereumProvider();
   const btcProvider = useBitcoinProvider();
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
-  const [inscriptionId, setInscriptionId] = useState<string>('');
+  const [inscriptionId, setInscriptionId] = useState<string>(
+    'erc721:coreDao:0xa2F47B8832dc2Ceab46123B9ad0Ce4eEc4774f6B:16576'
+  );
   const [message, setMessage] = useState<string>('Hello, VaultLayer!');
   const [walletConnectUri, setWalletConnectUri] = useState<string>(
     'Get wc: url from https://react-app.walletconnect.com/'
@@ -175,8 +177,8 @@ export default function Home() {
 
   const onAuthVaultWithLSV = async () => {
     try {
-      const auth = await authWithLSV(accounts[0], inscriptionId);
-      toast.success(auth?.authMethodType);
+      const auth = await getVaultById(inscriptionId);
+      toast.success(auth?.tokenId);
     } catch (error: any) {
       console.log('🚀 ~ onGetVaultNetwork ~ error:', error);
       toast.error(error.message || 'get vaultBtcNetwork error');
@@ -227,14 +229,47 @@ export default function Home() {
   };
 
   const onSignBtcMessage = async () => {
-    if (!message) {
+    /*if (!message) {
       return;
-    }
+    }*/
     try {
-      //const sig = await btcProvider.signMessage(message);
-      //toast.success(sig);
+      const sig = await ethProvider.signEcdsa(message);
+      toast.success(sig);
     } catch (error: any) {
       toast.error(error.message || 'sign message error');
+    }
+  };
+
+  const onSendVaultToken = async () => {
+    if (!amount) {
+      toast.error('Please enter the amount');
+      return;
+    }
+    if (!address) {
+      toast.error('Please enter the address');
+      return;
+    }
+    const erc20Abi = 'function transfer(address to, uint256 amount) returns (bool)';
+    const contractAddress = '0x7CC7920BB4F554821a47835822AB6525945602Ed';
+    const value = ethers.utils.parseUnits(amount, 18).toString();
+    try {
+      const txParams = {
+        chain: 'coreDao',
+        chainId: '1116',
+        contractAddress: contractAddress,
+        functionAbi: erc20Abi,
+        functionName: 'transfer',
+        functionArgs: [
+          address, // recipient
+          value,
+        ],
+      };
+      //console.log('🚀 ~ onSendVaultToken ~ txParams:', txParams);
+      const txId = await ethProvider.callContract(txParams);
+
+      toast.success(txId);
+    } catch (error: any) {
+      toast.error(error.message || 'onSendVaultToken error');
     }
   };
 
@@ -247,58 +282,25 @@ export default function Home() {
       toast.error('Please enter the amount');
       return;
     }
-    if(!smartVault){
+    if (!smartVault) {
       toast.error('No smart vault');
       return;
     }
 
-    const rpcUrl = 'https://rpc.coredao.org';
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-
     try {
-      // Fetch current nonce
-      const nonce = await provider.getTransactionCount(smartVault.ethAddress, 'latest');
-      console.log('nonce:', nonce.toString());
-      const network = await provider.getNetwork();
-      console.log('network:', network.toString());
-
-      // Fetch gas price
-      const gasPrice = await provider.getGasPrice();
-      console.log('Gas Price (wei):', gasPrice.toString());
-
-      // Estimate gas limit
-      const estimatedGasLimit = await provider.estimateGas({
-        to: address,
-        value: ethers.utils.parseEther(amount),
-      });
-
-      // Construct transaction
-      const tx = {
-        nonce,
-        to: address,
-        value: ethers.utils.parseEther(amount),
-        gasLimit: estimatedGasLimit,
-        gasPrice,
-        chainId: (await provider.getNetwork()).chainId,
-      };
-
       // Sign and send the transaction
-      const signedTx = await ethProvider?.vaultEthWallet?.signTransaction(tx);
-      console.log('Signed Transaction:', signedTx);
-      if (signedTx){
-        // Broadcast the transaction
-        const txResponse = await provider.sendTransaction(signedTx);
-        console.log('Transaction Hash:', txResponse.hash);
-
-        // Wait for confirmation
-        const receipt = await txResponse.wait();
-        console.log('Transaction confirmed in block:', receipt.blockNumber);
-        console.log('Gas Used:', receipt.gasUsed.toString());
-        toast.success(receipt.transactionHash);
+      const txId = await ethProvider?.coinTransfer({
+        chain: 'coreDao',
+        chainId: '1116',
+        recipientAddress: address,
+        value: ethers.utils.parseEther(amount).toString(),
+      });
+      console.log('txId:', txId);
+      if (txId) {
+        toast.success(txId);
       } else {
-        throw new Error ('Error signing tx');
+        throw new Error('Error signing tx');
       }
-      
     } catch (error: any) {
       toast.error(error.message || 'onSendVaultEthereum error');
       console.log('🚀 ~ onSendVaultEthereum ~ error:', error);
@@ -434,7 +436,7 @@ export default function Home() {
                 </Button>
                 <Input label="LSV Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
                 <Button color="secondary" onClick={onAuthVaultWithLSV}>
-                  Auth with LSV
+                  Load Vault by ID
                 </Button>
 
                 <Divider />
@@ -472,7 +474,7 @@ export default function Home() {
                 </Button>
                 <Input label="LSV Id" value={inscriptionId} onValueChange={setInscriptionId}></Input>
                 <Button color="secondary" onClick={onAuthVaultWithLSV}>
-                  Auth with LSV
+                  Load Vault by ID
                 </Button>
 
                 <Button color="primary" onClick={onGetNetwork}>
@@ -534,10 +536,10 @@ export default function Home() {
           Change Network
         </Button>
         <Divider />
-                <Input label="Message" value={message} onValueChange={setMessage}></Input>
-                <Button color="primary" onClick={onSignBtcMessage}>
-                  Sign Message
-                </Button>
+        <Input label="Message" value={message} onValueChange={setMessage}></Input>
+        <Button color="primary" onClick={onSignBtcMessage}>
+          Sign Message
+        </Button>
         <Divider />
         <Input label="Address" value={address} onValueChange={setAddress}></Input>
         <Input label="Satoshis" value={satoshis} onValueChange={setSatoshis} inputMode="numeric"></Input>
@@ -577,7 +579,7 @@ export default function Home() {
         <Input label="Address" value={address} onValueChange={setAddress}></Input>
         <Input label="ETH" value={amount} onValueChange={setAmount} inputMode="numeric"></Input>
         <Button color="primary" onClick={onSendVaultEthereum}>
-          Send Ethereum
+          Send Ethereum Token
         </Button>
         <Divider className="my-4"></Divider>
 

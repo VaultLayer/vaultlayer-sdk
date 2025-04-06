@@ -15,7 +15,7 @@ export default function ConnectProvider({ children }: { children: React.ReactNod
         apiUrl: process.env.NEXT_PUBLIC_VAULTLAYER_API_URL as string,
         apiKey: process.env.NEXT_PUBLIC_VAULTLAYER_API_KEY as string,
         domain: 'localhost',
-        authOnConnect: false,
+        authOnConnect: true,
         showVaultButton: true,
         walletConnect: {
           projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
