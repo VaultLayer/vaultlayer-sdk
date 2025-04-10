@@ -10,7 +10,7 @@ import { toOutputScript } from 'bitcoinjs-lib/src/address';
 import type { FeeSpeedType } from '../utils/bitcoinRpc';
 import { BitcoinRPC } from '../utils/bitcoinRpc';
 
-const SIGN_PSBT_TOOL_IPFS_CID = 'QmUsPfTQommhSmfmCWaAB8krAdN3ELdArFn1DqEth2kHY3';
+const SIGN_PSBT_TOOL_IPFS_CID = 'Qmf7VUjqPGEZHt539heWFthqmeZX7zvnS3AeJ6mui2ZKY7';
 
 export const useBitcoinProvider = () => {
   const { smartVault, authMethod, vaults, getVaults, executeVaultTool, btcNetwork, btcAccounts, switchBtcNetwork } =
@@ -37,6 +37,7 @@ export const useBitcoinProvider = () => {
           // Tool-specific parameters
           psbtBase64: psbt.toBase64(),
           btcNetwork: btcNetwork,
+          isRedeemTx: false,
         });
         console.log('signPsbt txId:', txId);
         return txId;
@@ -57,6 +58,7 @@ export const useBitcoinProvider = () => {
               // Tool-specific parameters
               psbtBase64: result.toBase64(),
               btcNetwork: btcNetwork,
+              isRedeemTx: false,
             });
             console.log('signPsbt txId:', txId);
             resolve(txId);
@@ -68,6 +70,62 @@ export const useBitcoinProvider = () => {
     },
     [btcNetwork, executeVaultTool]
   );
+
+  /**
+   * Signs the given PSBT in hex format.
+   * @param psbtHex - The hex string of the unsigned PSBT to sign.
+   * @returns A promise that resolves to the signed PSBT.
+   */
+  const signRedeem = useCallback(
+    async (psbt: bitcoin.Psbt, options?: { forceHideConfirmModal?: boolean; details?: any }) => {
+      const showConfirmModal = !options?.forceHideConfirmModal && !txConfirm.isNotRemind();
+
+      if (showConfirmModal) {
+        if (getPendingSignEventAccount() > 0) {
+          throw new Error('Operation failed, there is a transaction being processed');
+        }
+      }
+
+      if (!showConfirmModal) {
+        // sign & push transaction with Vault
+        const txId = await executeVaultTool(SIGN_PSBT_TOOL_IPFS_CID, {
+          // Tool-specific parameters
+          psbtBase64: psbt.toBase64(),
+          btcNetwork: btcNetwork,
+          isRedeemTx: true,
+        });
+        console.log('signRedeem txId:', txId);
+        return txId;
+      }
+
+      const psbtSignArguments = {
+        pstb: psbt,
+        details: options?.details,
+      };
+      return new Promise<bitcoin.Psbt>((resolve, reject) => {
+        //emit events for SingModal confirm
+        events.emit(EventName.psbtSign, psbtSignArguments);
+        events.once(EventName.psbtSignResult, async ({ result, error }) => {
+          if (result) {
+            console.log('Event vaultSignResult received:', result);
+            // signTransaction with Vault
+            const txId = await executeVaultTool(SIGN_PSBT_TOOL_IPFS_CID, {
+              // Tool-specific parameters
+              psbtBase64: result.toBase64(),
+              btcNetwork: btcNetwork,
+              isRedeemTx: true,
+            });
+            console.log('signRedeem txId:', txId);
+            resolve(txId);
+          } else {
+            reject(error);
+          }
+        });
+      });
+    },
+    [btcNetwork, executeVaultTool]
+  );
+
 
   /**
    * Retrieves the network fees.
@@ -282,6 +340,7 @@ export const useBitcoinProvider = () => {
     btcAccounts,
     getAccounts,
     signPsbt,
+    signRedeem,
     pushTx,
     sendBitcoin,
     getUtxos,

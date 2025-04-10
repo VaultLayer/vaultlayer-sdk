@@ -23,6 +23,7 @@ import type { AuthMethod } from '../utils/lit';
 import {
   authenticateWithEthWallet,
   authenticateWithBtcWallet,
+  authenticateWithErc721,
   getPKPs,
   mintPKP,
   BITCOIN_AUTH_METHOD_TYPE,
@@ -64,12 +65,12 @@ interface GlobalState {
   signMessageBtc: (message: string) => Promise<string>;
   signMessageEth: (message: string) => Promise<string>;
   authWithWallet: (accounts: string[]) => Promise<AuthMethod | undefined>;
+  authWithLSV: (vaultId: string) => Promise<AuthMethod | undefined>;
   authMethod?: AuthMethod;
   smartVault?: Vault;
   vaults?: Vault[];
   getVaults: (authMethod: AuthMethod) => Promise<Vault[] | []>;
   createVault: (authMethod: AuthMethod) => Promise<Vault | undefined>;
-  getVaultById: (lsvId: string) => Promise<Vault | undefined>;
   executeVaultTool: (ipfsId: string, params: any) => Promise<any>;
   btcNetwork: 'testnet' | 'livenet';
   btcAccounts: BTCAddress[];
@@ -86,7 +87,7 @@ const LIT_NETWORK = (process.env.LIT_NETWORK as LIT_NETWORKS_KEYS) || ('datil' a
 const litClientConfig: LitNodeClientConfig = {
   alertWhenUnauthorized: false,
   litNetwork: LIT_NETWORK,
-  debug: true,
+  debug: false,
 };
 
 export const ConnectProvider = ({
@@ -287,41 +288,17 @@ export const ConnectProvider = ({
     [options, createVault, setVaults, setSmartVault]
   );
 
-  const getVaultById = useCallback(
-    async (lsvId: string): Promise<Vault | undefined> => {
-      if (accounts.length > 0) {
-        try {
-          const authSig = {
-            address: accounts[0],
-            chain: lsvId.split(':')[1],
-            contractAddress: lsvId.split(':')[2],
-            erc721TokenId: lsvId.split(':')[3],
-          };
-          const erc72AuthMethod = {
-            authMethodType: ERC721_AUTH_METHOD_TYPE,
-            accessToken: JSON.stringify(authSig),
-          };
-          // Fetch PKPs tied to given auth method
-          const myPKPs = await getPKPs(options.apiUrl, erc72AuthMethod);
-          console.log('myPKPs response: ', myPKPs);
-          if (!Array.isArray(myPKPs)) throw new Error(myPKPs);
-          if (myPKPs.length > 0) {
-            console.log('getVaultById myVaults: ', myPKPs);
-            setVaults(myPKPs);
-            setSmartVault(myPKPs[0]);
-            return myPKPs[0];
-          } else {
-            const newVault = await createVault(erc72AuthMethod);
-            return newVault;
-          }
-        } catch (e: any) {
-          console.error('getVaultById error', e);
-          events.emit(EventName.authResult, `Error getting/creating vault ${e}`);
-        }
-      }
-    },
-    [accounts, options.apiUrl, createVault]
-  );
+  /*
+   * set smartValut
+   */
+  useEffect(() => {
+    if (authMethod && vaults.length == 0) {
+      console.log('calling getVaults');
+      getVaults(authMethod);
+    } else {
+      setSmartVault(undefined);
+    }
+  }, [authMethod, getVaults, setSmartVault]);
 
   /**
    * Create ETH vaultEthClient
@@ -426,6 +403,36 @@ export const ConnectProvider = ({
       }
     },
     [options, litNodeClient, connector, setAuthMethod, createVaultEthClient, getVaults, signMessageBtc, signMessageEth]
+  );
+
+  /*
+   * Initialize authMethod
+   */
+  const authWithLSV = useCallback(
+    async (lsvId: string): Promise<AuthMethod | undefined> => {
+      try {
+        console.log('authWithNFT start');
+        localStorage.removeItem('lit-session-key');
+        localStorage.removeItem('lit-wallet-sig');
+        events.emit(EventName.startAuth, { address: accounts[0], lsvId: lsvId });
+        if (lsvId.startsWith('erc721:')) {
+          const result: AuthMethod = await authenticateWithErc721(
+            litNodeClient,
+            options.domain,
+            accounts[0],
+            lsvId,
+            signMessageEth
+          );
+          console.log('authWithLSV authenticateWithErc721:', result);
+          setAuthMethod(result);
+          return result;
+        }
+      } catch (e) {
+        setAuthMethod(undefined);
+        console.error('authWithNFT error', e);
+      }
+    },
+    [accounts, litNodeClient, options.domain, signMessageEth, setAuthMethod]
   );
 
   useEffect(() => {
@@ -547,7 +554,7 @@ export const ConnectProvider = ({
               params: {
                 ...toolParams,
                 pkpEthAddress: smartVault.ethAddress,
-                authSig: smartVault.authMethod.accessToken,
+                authSig: authMethod.accessToken,
               },
             },
           });
@@ -645,12 +652,12 @@ export const ConnectProvider = ({
         signMessageBtc,
         signMessageEth,
         authWithWallet,
+        authWithLSV,
         authMethod,
         smartVault,
         vaults,
         getVaults,
         createVault,
-        getVaultById,
         executeVaultTool,
         btcNetwork,
         btcAccounts,

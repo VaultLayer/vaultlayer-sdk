@@ -41,7 +41,7 @@ export default function Home() {
   const { accounts, connector, getNetwork, switchNetwork, getPublicKey, signMessage, sendBitcoin } =
     useWalletProvider();
   // Smart Vault accounts:
-  const { smartVault, authWithWallet, getVaultById } = useVaultProvider();
+  const { smartVault, authWithWallet, authWithLSV } = useVaultProvider();
   const ethProvider = useEthereumProvider();
   const btcProvider = useBitcoinProvider();
   const [inscriptionReceiverAddress, setInscriptionReceiverAddress] = useState<string>();
@@ -177,7 +177,7 @@ export default function Home() {
 
   const onAuthVaultWithLSV = async () => {
     try {
-      const auth = await getVaultById(inscriptionId);
+      const auth = await authWithLSV(inscriptionId);
       toast.success(auth?.tokenId);
     } catch (error: any) {
       console.log('🚀 ~ onGetVaultNetwork ~ error:', error);

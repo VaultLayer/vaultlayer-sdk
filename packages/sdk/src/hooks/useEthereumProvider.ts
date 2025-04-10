@@ -7,9 +7,10 @@ import { EventName } from '../types/eventName';
 import events, { getPendingSignEventAccount } from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
-const SIGN_ECDSA_TOOL_IPFS_CID = 'QmbBNaMVzuoWvCMwRBgsm8ok3Egjg7z58BCTM4U36BeT8p';
-const CALL_CONTRACT_TOOL_IPFS_CID = 'QmSZ7vgufvi4Xywk8hPCcy9owmcPW7UhTQcnage549CCoE';
-const COIN_TRANSFER_TOOL_IPFS_CID = 'QmXfqSwn6zga8THRopEhnL7QCq1cjkWHwjvy2k7KDEwCDt';
+//const SIGN_ECDSA_TOOL_IPFS_CID = 'QmbBNaMVzuoWvCMwRBgsm8ok3Egjg7z58BCTM4U36BeT8p';
+
+const CALL_CONTRACT_TOOL_IPFS_CID = 'QmcCxu2GTsVRHNrcwvdeFoyBVsKnRwEHGNxehfABsdPw52';
+const COIN_TRANSFER_TOOL_IPFS_CID = 'QmR63yuTd9D5wHN11Wcn2JVJjbnkH5tABpLLUZ8PQC8E9R';
 
 export const useEthereumProvider = () => {
   const { smartVault, authMethod, vaultEthWallet, vaultEthClient, vaultWalletConnect, executeVaultTool } =
@@ -57,7 +58,7 @@ export const useEthereumProvider = () => {
     [vaultWalletConnect]
   );
 
-  const signEcdsa = useCallback(
+  /*const signEcdsa = useCallback(
     async (message: string) => {
       if (!smartVault) {
         throw new Error('smartVault not connected!');
@@ -70,7 +71,7 @@ export const useEthereumProvider = () => {
       return agentToolSig;
     },
     [executeVaultTool, smartVault]
-  );
+  );*/
 
   const callContract = useCallback(
     async (txInfo: {
@@ -117,7 +118,7 @@ export const useEthereumProvider = () => {
     vaultEthWallet,
     vaultEthClient,
     switchEthChain,
-    signEcdsa,
+    //signEcdsa,
     callContract,
     coinTransfer,
     chainId,

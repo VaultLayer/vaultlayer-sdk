@@ -9,7 +9,7 @@ import { getSchnorrHash } from './bitcoinUtils';
 
 export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0_3'));
 export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmS1CJZrZ1HNgmwiGN85Lscov3ybbZ77yVLCs4UsAcmPjJ';
-export const ERC721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('ERC721_V0_31'));
+export const ERC721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('ERC721_V0_33'));
 export const ERC721_AUTH_LIT_ACTION_IPFS_CID = 'QmTwiw4cePFKV6rCMhxoa4cHf1cJDyxdG4f2Kxuuk4w118';
 
 export interface AuthMethod {
@@ -95,6 +95,91 @@ export async function authenticateWithEthWallet(
   const authMethod = {
     authMethodType: AUTH_METHOD_TYPE.EthWallet,
     accessToken: '',
+    sessionSigs,
+  };
+
+  return authMethod;
+}
+
+export async function authenticateWithErc721(
+  litNodeClient: LitNodeClient | undefined,
+  domain: string,
+  address: string,
+  lsvId: string,
+  signMessage: (message: string) => Promise<string>
+): Promise<AuthMethod> {
+  if (!litNodeClient) {
+    throw new Error('No litNodeClient');
+  }
+  const generateAuthSig = async ({
+    toSign,
+    address,
+    algo,
+  }: {
+    toSign: string;
+    address: string;
+    algo?: 'ed25519';
+  }): Promise<AuthSig> => {
+    const signature = await signMessage(toSign);
+
+    return {
+      sig: signature,
+      derivedVia: 'web3.eth.personal.sign',
+      signedMessage: toSign,
+      address: address,
+      ...(algo && { algo }),
+    };
+  };
+
+  const sessionSigs = await litNodeClient.getSessionSigs({
+    chain: 'ethereum',
+    expiration: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(), // 24 hours
+    /*capabilityAuthSigs:
+      capacityDelegationAuthSig !== undefined
+        ? [capacityDelegationAuthSig]
+        : undefined,*/
+    resourceAbilityRequests: [
+      {
+        resource: new LitActionResource('*'),
+        ability: LIT_ABILITY.LitActionExecution,
+      },
+      {
+        resource: new LitPKPResource('*'),
+        ability: LIT_ABILITY.PKPSigning,
+      },
+    ],
+    authNeededCallback: async ({ uri, expiration, resourceAbilityRequests }) => {
+      const toSign = await createSiweMessage({
+        statement: `Sign-in to VaultLayer.xyz - Smart Vault with Id: ${lsvId}`,
+        domain,
+        uri,
+        expiration,
+        resources: resourceAbilityRequests,
+        walletAddress: address,
+        nonce: await litNodeClient.getLatestBlockhash(),
+        litNodeClient: litNodeClient,
+      });
+
+      return await generateAuthSig({
+        toSign,
+        address,
+      });
+    },
+  });
+
+  const authMethod = {
+    authMethodType: AUTH_METHOD_TYPE.EthWallet,
+    accessToken: JSON.stringify(
+      lsvId
+        ? {
+            authMethodType: ERC721_AUTH_METHOD_TYPE,
+            address: address,
+            chain: lsvId.split(':')[1],
+            contractAddress: lsvId.split(':')[2],
+            erc721TokenId: lsvId.split(':')[3],
+          }
+        : {}
+    ),
     sessionSigs,
   };
 

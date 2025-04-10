@@ -11,11 +11,11 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
   const [authArguments, setAuthArguments] = useState<any>();
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const { connector, authMethod } = useConnectProvider();
+  const { smartVault, authMethod } = useConnectProvider();
 
   useEffect(() => {
-    if (authMethod) {
-      console.log('authMethod ready');
+    if (smartVault) {
+      console.log('smartVault ready');
       setLoading(false);
       setErrorMessage('');
       try {
@@ -27,14 +27,14 @@ const AuthModal = ({ open, onClose, onOpen }: { open: boolean; onClose: () => vo
       }
       onClose();
     }
-  }, [authMethod]);
+  }, [onClose, smartVault]);
 
   useEffect(() => {
-    if (connector) {
-      console.log('connector ready');
+    if (authMethod) {
+      console.log('authMethod ready');
       setLoading(true);
     }
-  }, [connector]);
+  }, [authMethod]);
 
   useEffect(() => {
     const onStartAuth = (arg: any) => {

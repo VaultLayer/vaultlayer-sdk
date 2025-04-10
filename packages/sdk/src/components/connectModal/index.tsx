@@ -71,7 +71,7 @@ const ConnectModal = ({ open, onClose }: { open: boolean; onClose: () => void })
 
   return (
     <Modal open={open} onClose={onClose} isDismissable={false} contentClassName={styles.connectModal}>
-      <div className={styles.title}>{selectConnector?.metadata.name || 'Wallet to open Smart Vault'}</div>
+      <div className={styles.title}>{selectConnector?.metadata.name || 'Wallet to Connect'}</div>
       <img className={styles.closeBtn} src={close} onClick={onClose}></img>
       {backVisible && <img className={styles.backBtn} src={back} onClick={onBack} alt={''} />}
 
