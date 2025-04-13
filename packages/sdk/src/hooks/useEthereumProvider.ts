@@ -7,10 +7,9 @@ import { EventName } from '../types/eventName';
 import events, { getPendingSignEventAccount } from '../utils/eventUtils';
 import txConfirm from '../utils/txConfirmUtils';
 
-//const SIGN_ECDSA_TOOL_IPFS_CID = 'QmbBNaMVzuoWvCMwRBgsm8ok3Egjg7z58BCTM4U36BeT8p';
-
-const CALL_CONTRACT_TOOL_IPFS_CID = 'QmcCxu2GTsVRHNrcwvdeFoyBVsKnRwEHGNxehfABsdPw52';
-const COIN_TRANSFER_TOOL_IPFS_CID = 'QmR63yuTd9D5wHN11Wcn2JVJjbnkH5tABpLLUZ8PQC8E9R';
+const CALL_CONTRACT_TOOL_IPFS_CID = 'QmbG1tSHHx3LKF86n6TrD1tYGoqBEUBjVdHQoYUTok3CZw';
+const COIN_TRANSFER_TOOL_IPFS_CID = 'QmUguju5orFpruE3AWe7HnLX4WAuHcVXmKMD8uQwb73wU8';
+const DECRYPT_TOOL_IPFS_CID = 'QmZZvyW4zQe18ogfjFwbFzRsddyukCYBebFr6EoYR9PLgT';
 
 export const useEthereumProvider = () => {
   const { smartVault, authMethod, vaultEthWallet, vaultEthClient, vaultWalletConnect, executeVaultTool } =
@@ -58,21 +57,6 @@ export const useEthereumProvider = () => {
     [vaultWalletConnect]
   );
 
-  /*const signEcdsa = useCallback(
-    async (message: string) => {
-      if (!smartVault) {
-        throw new Error('smartVault not connected!');
-      }
-      console.log('signEcdsa message:', message);
-      const agentToolSig = await executeVaultTool(SIGN_ECDSA_TOOL_IPFS_CID, {
-        // Tool-specific parameters
-        message,
-      });
-      return agentToolSig;
-    },
-    [executeVaultTool, smartVault]
-  );*/
-
   const callContract = useCallback(
     async (txInfo: {
       chain: string;
@@ -111,6 +95,21 @@ export const useEthereumProvider = () => {
     [executeVaultTool, smartVault]
   );
 
+  const decryptString = useCallback(
+    async (txInfo: { secretPrefix: string; ciphertext: string; dataToEncryptHash: string }) => {
+      if (!smartVault) {
+        throw new Error('smartVault not connected!');
+      }
+      console.log('decryptString txInfo:', txInfo);
+      const agentToolSig = await executeVaultTool(DECRYPT_TOOL_IPFS_CID, {
+        // Tool-specific parameters
+        ...txInfo,
+      });
+      return agentToolSig;
+    },
+    [executeVaultTool, smartVault]
+  );
+
   return {
     smartVault,
     authMethod,
@@ -118,7 +117,7 @@ export const useEthereumProvider = () => {
     vaultEthWallet,
     vaultEthClient,
     switchEthChain,
-    //signEcdsa,
+    decryptString,
     callContract,
     coinTransfer,
     chainId,

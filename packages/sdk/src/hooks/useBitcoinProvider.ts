@@ -10,7 +10,7 @@ import { toOutputScript } from 'bitcoinjs-lib/src/address';
 import type { FeeSpeedType } from '../utils/bitcoinRpc';
 import { BitcoinRPC } from '../utils/bitcoinRpc';
 
-const SIGN_PSBT_TOOL_IPFS_CID = 'Qmf7VUjqPGEZHt539heWFthqmeZX7zvnS3AeJ6mui2ZKY7';
+const SIGN_PSBT_TOOL_IPFS_CID = 'QmboCDZDcc2torTsnZt6xD8K4VdnWTo7MreQGR1GTkvGhv';
 
 export const useBitcoinProvider = () => {
   const { smartVault, authMethod, vaults, getVaults, executeVaultTool, btcNetwork, btcAccounts, switchBtcNetwork } =

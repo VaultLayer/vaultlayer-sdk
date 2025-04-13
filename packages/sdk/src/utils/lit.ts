@@ -9,7 +9,7 @@ import { getSchnorrHash } from './bitcoinUtils';
 
 export const BITCOIN_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('BITCOIN_BIP322_v0_3'));
 export const BITCOIN_AUTH_LIT_ACTION_IPFS_CID = 'QmS1CJZrZ1HNgmwiGN85Lscov3ybbZ77yVLCs4UsAcmPjJ';
-export const ERC721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('ERC721_V0_33'));
+export const ERC721_AUTH_METHOD_TYPE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('ERC721_V0_39'));
 export const ERC721_AUTH_LIT_ACTION_IPFS_CID = 'QmTwiw4cePFKV6rCMhxoa4cHf1cJDyxdG4f2Kxuuk4w118';
 
 export interface AuthMethod {
